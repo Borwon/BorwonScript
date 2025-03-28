@@ -53,10 +53,10 @@ end
 local scripts = {
     [116614712661486] = { -- ตัวอย่าง Game ID 1
         name = "AriseCrossoverAFK",
-        url = "https://pastebin.com/raw/your-script-1"
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/AriseRam.lua"
     },
-    [9876543210] = { -- ตัวอย่าง Game ID 2
-        name = "แมพตัวอย่างที่ 2",
+    [18668065416] = { -- ตัวอย่าง Game ID 2
+        name = "BlueLockRivals",
         url = "https://pastebin.com/raw/your-script-2"
     },
 }
