@@ -6,7 +6,7 @@ local function waitForGameLoaded(timeout)
     -- รอจนกว่าเกมจะโหลดเสร็จ
     repeat
         if tick() - startTime > timeout then
-            warn("⏳ การโหลดเกมใช้เวลานานเกินไป!")
+            warn("⏳ โหลดเกมนานเกินไป!")
             return false
         end
         task.wait()
@@ -33,9 +33,9 @@ local function waitForGameLoaded(timeout)
             return game:GetService(serviceName)
         end)
         if success and service then
-            print("✅ โหลด Service:", serviceName)
+            print("✅ โหลด:", serviceName)
         else
-            warn("❌ ไม่สามารถโหลด Service:", serviceName, "Error:", tostring(service))
+            warn("❌ โหลดไม่ได้:", serviceName)
         end
     end
 
@@ -44,9 +44,9 @@ end
 
 -- เรียกใช้งานฟังก์ชันรอโหลด
 if waitForGameLoaded() then
-    print("✅ พร้อมทำงานต่อ!")
+    print("✅ พร้อมทำงาน!")
 else
-    warn("🚫 เกมโหลดไม่สำเร็จภายในเวลาที่กำหนด!")
+    warn("🚫 โหลดเกมไม่สำเร็จ!")
 end
 
 -- Table เก็บข้อมูลสคริปต์แต่ละเกม
@@ -68,26 +68,29 @@ local currentGame = game.PlaceId
 if scripts[currentGame] then
     local mapName = scripts[currentGame].name
     local scriptUrl = scripts[currentGame].url
-    print("🌐 พบสคริปต์สำหรับเกม: " .. mapName .. " (Game ID: " .. currentGame .. ")")
+    print("🌐 พบสคริปต์: " .. mapName .. " (ID: " .. currentGame .. ")")
     
+    -- ตรวจสอบว่าฟังก์ชัน loadstring หรือ load พร้อมใช้งานหรือไม่
+    local executor = loadstring or load
+    if not executor then
+        warn("❌ ไม่มีฟังก์ชัน loadstring/load. รันไม่ได้.")
+        return
+    end
+
     -- พยายามโหลดและรันสคริปต์
     local success, err = pcall(function()
         local response = game:HttpGet(scriptUrl)
         if not response or response == "" then
-            error("Response is empty or invalid.")
-        end
-        local executor = loadstring or load
-        if not executor then
-            error("❌ Neither loadstring nor load function is available in this environment. Script execution is not supported.")
+            error("Response ว่างหรือไม่ถูกต้อง.")
         end
         executor(response)()
     end)
     
     if not success then
-        warn("❌ เกิดข้อผิดพลาดในการโหลดสคริปต์: " .. tostring(err))
+        warn("❌ โหลดสคริปต์ล้มเหลว: " .. tostring(err))
     else
         print("✅ โหลดสคริปต์สำเร็จ!")
     end
 else
-    print("🚫 ไม่พบสคริปต์สำหรับเกมนี้ (Game ID: " .. currentGame .. ")")
+    print("🚫 ไม่มีสคริปต์สำหรับเกมนี้ (ID: " .. currentGame .. ")")
 end
