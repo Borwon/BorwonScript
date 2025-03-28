@@ -35,7 +35,7 @@ local function waitForGameLoaded(timeout)
         if success and service then
             print("✅ โหลด Service:", serviceName)
         else
-            print("❌ ไม่สามารถโหลด Service:", serviceName)
+            warn("❌ ไม่สามารถโหลด Service:", serviceName, "Error:", tostring(service))
         end
     end
 
@@ -78,7 +78,7 @@ if scripts[currentGame] then
         end
         local executor = loadstring or load
         if not executor then
-            error("Neither loadstring nor load function is available.")
+            error("❌ Neither loadstring nor load function is available in this environment. Script execution is not supported.")
         end
         executor(response)()
     end)
