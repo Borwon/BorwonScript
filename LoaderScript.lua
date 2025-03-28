@@ -76,10 +76,11 @@ if scripts[currentGame] then
         if not response or response == "" then
             error("Response is empty or invalid.")
         end
-        if not loadstring then
-            error("loadstring function is not available.")
+        local executor = loadstring or load
+        if not executor then
+            error("Neither loadstring nor load function is available.")
         end
-        loadstring(response)()
+        executor(response)()
     end)
     
     if not success then
@@ -90,4 +91,3 @@ if scripts[currentGame] then
 else
     print("🚫 ไม่พบสคริปต์สำหรับเกมนี้ (Game ID: " .. currentGame .. ")")
 end
-#
