@@ -27,7 +27,7 @@ local config = {
     target_folders = {"Pets"},    -- Specific folders to monitor
     
     -- Notification Settings
-    debug_mode = true,            -- Enable debug logs
+    debug_mode = false,            -- Enable debug logs
 }
 
 -- Services
