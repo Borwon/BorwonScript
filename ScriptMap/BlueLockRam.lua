@@ -47,7 +47,7 @@ local function FormatStyle(style)
 end
 
 -- Function to validate Flow
-local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester"}
+local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
 local function FormatFlow(flow)
     for _, v in pairs(validFlows) do
         if v == flow then return flow end
@@ -78,7 +78,7 @@ log("info", "Script Started")
 -- =====================
 -- Valid styles and flows
 local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
-local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester"}
+local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
 
 -- Create lookup tables for faster validation
 local styleMap, flowMap = {}, {}
