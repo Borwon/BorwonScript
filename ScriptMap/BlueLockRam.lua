@@ -38,7 +38,7 @@ local function FormatCoins(value)
 end
 
 -- Function to validate Style
-local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami","NEL Isagi"}
+local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
 local function FormatStyle(style)
     for _, v in pairs(validStyles) do
         if v == style then return style end
@@ -77,7 +77,7 @@ log("info", "Script Started")
 -- STYLE AND FLOW VALIDATION
 -- =====================
 -- Valid styles and flows
-local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami","NEL Isagi"}
+local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
 local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester"}
 
 -- Create lookup tables for faster validation
