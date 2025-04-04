@@ -1,9 +1,9 @@
 -- Configuration Settings
 local config = {
-    low_mode = true, -- If true, reduces graphical effects for better performance
-    fps_cap = 10, -- Max FPS limit
-    disable_shadows = true, -- Disable global shadows
-    optimize_lighting = true, -- Adjust lighting settings for performance
+    low_mode = true,
+    fps_cap = 10,
+    disable_shadows = true,
+    optimize_lighting = true
 }
 
 -- Ensure game is fully loaded before executing
@@ -11,12 +11,10 @@ repeat task.wait() until game:IsLoaded() and game.Players and game.Players.Local
 print("Script Started")
 
 -- Apply Configurations
-setfpscap(config.fps_cap) -- Set FPS cap
-
+setfpscap(config.fps_cap)
 if config.disable_shadows then
     game:GetService("Lighting").GlobalShadows = false
 end
-
 if config.optimize_lighting then
     game:GetService("Lighting").Brightness = 1
     game:GetService("Lighting").TimeOfDay = "12:00:00"
@@ -52,9 +50,7 @@ local function FormatCoins(value)
     end
 end
 
--- =====================
--- LOGGING SYSTEM
--- =====================
+-- Logging System
 local function log(type, message)
     local timeStr = os.date("%H:%M:%S")
     if type == "info" then
@@ -70,31 +66,22 @@ end
 
 log("info", "Script Started")
 
--- =====================
--- STYLE AND FLOW VALIDATION
--- =====================
+-- Style and Flow Validation
 local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
 local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
-
--- Create lookup tables for faster validation
 local styleMap, flowMap = {}, {}
 for _, s in ipairs(validStyles) do styleMap[s] = true end
 for _, f in ipairs(validFlows) do flowMap[f] = true end
 
--- Function to validate Style
 local function FormatStyle(style)
     return styleMap[style] and style or "none"
 end
 
--- Function to validate Flow
 local function FormatFlow(flow)
     return flowMap[flow] and flow or "none"
 end
 
--- =====================
--- DATA MANAGEMENT
--- =====================
--- Function to load player data from file
+-- Data Management
 local function LoadPlayerData()
     local fileName = "Idcheck/PlayerData/player_data.txt"
     if not isfile(fileName) then return {} end
@@ -113,12 +100,10 @@ local function LoadPlayerData()
     return data
 end
 
--- Function to save player data
 local function SavePlayerData(username, style, flow, level)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
 
-    -- Ensure folder exists
     if not isfolder(folderName) then
         local success, err = pcall(function()
             makefolder(folderName)
@@ -131,19 +116,14 @@ local function SavePlayerData(username, style, flow, level)
         end
     end
 
-    -- Load existing data
     local playerData = LoadPlayerData()
-
-    -- Update player data
     playerData[username] = { style = style, flow = flow, level = level }
 
-    -- Prepare data for saving
     local lines = {}
     for uname, data in pairs(playerData) do
         table.insert(lines, string.format("%s:%s:%s:%d", uname, data.style, data.flow, data.level))
     end
 
-    -- Write data to file
     local success, err = pcall(function()
         writefile(fileName, table.concat(lines, "\n"))
     end)
@@ -154,18 +134,21 @@ local function SavePlayerData(username, style, flow, level)
     end
 end
 
--- =====================
--- ACCOUNT MANAGEMENT
--- =====================
--- Function to ensure all data is loaded before proceeding with timeout
+-- Account Management
 local function WaitForDataToLoad()
     local player = game:GetService("Players").LocalPlayer
-    local stats = player:WaitForChild("ProfileStats", 10) -- Timeout 10 seconds
+    local stats = player:WaitForChild("ProfileStats", 10)
     local pStats = player:WaitForChild("PlayerStats", 10)
 
     if not (stats and pStats) then
-        log("error", "Failed to load ProfileStats or PlayerStats within 10 seconds.")
-        return false
+        log("warning", "Initial stats load failed, retrying...")
+        task.wait(2) -- รอเพิ่มก่อนลองใหม่
+        stats = player:FindFirstChild("ProfileStats") or player:WaitForChild("ProfileStats", 5)
+        pStats = player:FindFirstChild("PlayerStats") or player:WaitForChild("PlayerStats", 5)
+        if not (stats and pStats) then
+            log("error", "Failed to load ProfileStats or PlayerStats after retry.")
+            return false
+        end
     end
 
     local money = stats:WaitForChild("Money", 5)
@@ -182,19 +165,32 @@ local function WaitForDataToLoad()
     return true
 end
 
--- Function to handle data saving and sending
+local debounce = false
 local function SaveAndSendData()
+    if debounce then return end
+    debounce = true
+
     local player = game:GetService("Players").LocalPlayer
-    if not WaitForDataToLoad() then return end
+    if not WaitForDataToLoad() then
+        debounce = false
+        return
+    end
 
     local stats = player.ProfileStats
     local pStats = player.PlayerStats
 
-    -- Extract data
+    -- Extract and validate data
     local money = stats.Money.Value
     local level = stats.Level.Value
     local style = FormatStyle(pStats.Style.Value)
     local flow = FormatFlow(pStats.Flow.Value)
+
+    -- Validate data before saving/sending
+    if money < 0 or level <= 0 then
+        log("warning", "Invalid data detected (Money: " .. money .. ", Level: " .. level .. "), skipping save.")
+        debounce = false
+        return
+    end
 
     -- Save data
     local dataSaved = false
@@ -223,13 +219,21 @@ local function SaveAndSendData()
         log("success", "Data sent successfully.")
     end
 
-    -- Final confirmation
     if dataSaved and dataSent then
         log("success", "Save and send operations completed successfully.")
     else
         log("error", "Save and send operations did not complete successfully.")
     end
+
+    task.wait(2) -- Debounce delay
+    debounce = false
 end
+
+-- Save data before leaving
+game.Players.LocalPlayer.OnRemove:Connect(function()
+    log("info", "Player is leaving, saving final data...")
+    SaveAndSendData()
+end)
 
 -- Initialize RAMAccount with event listeners
 task.spawn(function()
@@ -238,10 +242,8 @@ task.spawn(function()
     local pStats = player:WaitForChild("PlayerStats", 10)
 
     if stats and pStats then
-        -- Initial save
-        SaveAndSendData()
+        SaveAndSendData() -- Initial save
 
-        -- Use event listeners to update on change
         stats.Money.Changed:Connect(function()
             SaveAndSendData()
         end)
@@ -259,9 +261,7 @@ task.spawn(function()
     end
 end)
 
--- =====================
--- AUTO-KICK FUNCTIONALITY
--- =====================
+-- Auto-Kick Functionality
 local function CheckAndKickSelf()
     local player = game:GetService("Players").LocalPlayer
     local pStats = player:FindFirstChild("PlayerStats")
@@ -283,7 +283,6 @@ local function CheckAndKickSelf()
     end
 end
 
--- Check self when the game loads
 task.spawn(function()
     log("info", "Starting auto-kick monitoring")
     task.wait(5)
