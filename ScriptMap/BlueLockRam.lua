@@ -98,23 +98,10 @@ end
 -- =====================
 -- DATA MANAGEMENT
 -- =====================
--- =====================
--- DATA LOADING OPTIMIZATION
--- =====================
--- Cache for loaded data to avoid redundant loading
-local cachedData = nil
-
--- Function to load player data from file (optimized to use caching)
+-- Function to load player data from file
 local function LoadPlayerData()
-    if cachedData then
-        return cachedData -- Return cached data if already loaded
-    end
-
     local fileName = "Idcheck/PlayerData/player_data.txt"
-    if not isfile(fileName) then
-        cachedData = {}
-        return cachedData
-    end
+    if not isfile(fileName) then return {} end
 
     local data, lines = {}, readfile(fileName):split("\n")
     for _, line in ipairs(lines) do
@@ -127,12 +114,10 @@ local function LoadPlayerData()
             }
         end
     end
-
-    cachedData = data -- Cache the loaded data
     return data
 end
 
--- Function to save player data (invalidate cache after saving)
+-- Function to save player data
 local function SavePlayerData(username, style, flow, level)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
@@ -173,7 +158,6 @@ local function SavePlayerData(username, style, flow, level)
         log("error", "Failed to save file: " .. tostring(err))
     else
         log("success", "Data saved successfully: " .. fileName)
-        cachedData = nil -- Invalidate cache after saving
     end
 end
 
