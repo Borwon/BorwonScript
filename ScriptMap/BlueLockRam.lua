@@ -105,16 +105,20 @@ local function LoadPlayerData()
     
     local data, lines = {}, readfile(fileName):split("\n")
     for _, line in ipairs(lines) do
-        local username, style, flow = line:match("([^:]+):([^:]*):([^:]*)")
+        local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
         if username then
-            data[username] = { style = style ~= "" and style or "none", flow = flow ~= "" and flow or "none" }
+            data[username] = {
+                style = style ~= "" and style or "none",
+                flow = flow ~= "" and flow or "none",
+                level = tonumber(level) or 1
+            }
         end
     end
     return data
 end
 
 -- Function to save player data
-local function SavePlayerData(username, style, flow)
+local function SavePlayerData(username, style, flow, level)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
 
@@ -133,12 +137,12 @@ local function SavePlayerData(username, style, flow)
 
     -- Load existing data
     local playerData = LoadPlayerData()
-    playerData[username] = { style = style, flow = flow }
+    playerData[username] = { style = style, flow = flow, level = level }
 
     -- Prepare data for saving
     local lines = {}
     for uname, data in pairs(playerData) do
-        table.insert(lines, string.format("%s:%s:%s", uname, data.style, data.flow))
+        table.insert(lines, string.format("%s:%s:%s:%d", uname, data.style, data.flow, data.level))
     end
 
     -- Write data to file
@@ -177,7 +181,7 @@ if MyAccount then
                     local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
                     MyAccount:SetAlias(alias)
                     MyAccount:SetDescription(description)
-                    SavePlayerData(player.Name, style, flow)
+                    SavePlayerData(player.Name, style, flow, level)
                 end
             end)
             
@@ -209,7 +213,7 @@ local function CheckAndKickSelf()
     -- Kick only if both Style and Flow match
     if isValidStyle and isValidFlow then
         log("warning", "Self-kick triggered: Style = " .. style .. ", Flow = " .. flow)
-        task.delay(0.5, function() -- Small delay before kicking
+        task.delay(1, function() -- Delay to ensure data is saved and sent
             player:Kick("You have been kicked due to matching Style & Flow.")
         end)
     end
@@ -222,6 +226,8 @@ task.spawn(function()
     
     -- Initial check
     local success, err = pcall(function()
+        -- Ensure data is sent and saved before kicking
+        task.wait(2) -- Add delay to prioritize data handling
         CheckAndKickSelf()
     end)
     
@@ -234,6 +240,8 @@ task.spawn(function()
         task.wait(10) -- Check every 10 seconds
         
         local success, err = pcall(function()
+            -- Ensure data is sent and saved before kicking
+            task.wait(2) -- Add delay to prioritize data handling
             CheckAndKickSelf()
         end)
         
