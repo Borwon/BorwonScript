@@ -138,8 +138,8 @@ local function SavePlayerData(username, style, flow, level)
     -- Load existing data
     local playerData = LoadPlayerData()
 
-    -- Add a delay to ensure data is fully loaded
-    task.wait(2) -- Wait for 2 seconds to ensure data consistency
+    -- Add a longer delay to ensure data is fully loaded
+    task.wait(5) -- Wait for 5 seconds to ensure data consistency
 
     -- Update player data
     playerData[username] = { style = style, flow = flow, level = level }
@@ -195,8 +195,8 @@ local function SaveAndSendData()
     local style = pStats:FindFirstChild("Style") and FormatStyle(pStats.Style.Value) or "none"
     local flow = pStats:FindFirstChild("Flow") and FormatFlow(pStats.Flow.Value) or "none"
 
-    -- Add a delay to ensure data consistency before saving and sending
-    task.wait(2) -- Wait for 2 seconds to ensure data is fully loaded
+    -- Add a longer delay to ensure data consistency before saving and sending
+    task.wait(5) -- Wait for 5 seconds to ensure data is fully loaded
 
     -- Save data
     local dataSaved = false
