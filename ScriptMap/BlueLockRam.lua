@@ -20,14 +20,20 @@ if config.optimize_lighting then
     game:GetService("Lighting").TimeOfDay = "12:00:00"
 end
 
--- Load RAMAccount Library with error handling
+-- Check file writing capability
+local canWriteFile = pcall(function() writefile("test.txt", "test") end)
+if not canWriteFile then
+    print("[WARNING] This Executor does not support file writing. File saving will be skipped.")
+end
+
+-- Load RAMAccount Library with fallback
 local RAMAccount
 local success, err = pcall(function()
     RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
 end)
 if not success then
     print("[ERROR] Failed to load RAMAccount: " .. tostring(err))
-    return
+    RAMAccount = { new = function(name) return { SetAlias = function() end, SetDescription = function() end } end }
 end
 
 local MyAccount
@@ -83,6 +89,7 @@ end
 
 -- Data Management
 local function LoadPlayerData()
+    if not canWriteFile then return {} end
     local fileName = "Idcheck/PlayerData/player_data.txt"
     if not isfile(fileName) then return {} end
 
@@ -101,6 +108,11 @@ local function LoadPlayerData()
 end
 
 local function SavePlayerData(username, style, flow, level)
+    if not canWriteFile then
+        log("warning", "File writing not supported, skipping save.")
+        return
+    end
+
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
 
@@ -137,28 +149,46 @@ end
 -- Account Management
 local function WaitForDataToLoad()
     local player = game:GetService("Players").LocalPlayer
-    local stats = player:WaitForChild("ProfileStats", 10)
-    local pStats = player:WaitForChild("PlayerStats", 10)
+    local stats, pStats
 
-    if not (stats and pStats) then
-        log("warning", "Initial stats load failed, retrying...")
-        task.wait(2) -- รอเพิ่มก่อนลองใหม่
-        stats = player:FindFirstChild("ProfileStats") or player:WaitForChild("ProfileStats", 5)
-        pStats = player:FindFirstChild("PlayerStats") or player:WaitForChild("PlayerStats", 5)
-        if not (stats and pStats) then
-            log("error", "Failed to load ProfileStats or PlayerStats after retry.")
-            return false
-        end
+    -- Initial wait with retry
+    for i = 1, 3 do -- ลอง 3 ครั้ง
+        stats = player:WaitForChild("ProfileStats", 10)
+        pStats = player:WaitForChild("PlayerStats", 10)
+        if stats and pStats then break end
+        log("warning", "Stats not loaded, retrying (" .. i .. "/3)...")
+        task.wait(5) -- รอเพิ่ม 5 วินาทีก่อนลองใหม่
     end
 
-    local money = stats:WaitForChild("Money", 5)
-    local level = stats:WaitForChild("Level", 5)
-    local style = pStats:WaitForChild("Style", 5)
-    local flow = pStats:WaitForChild("Flow", 5)
+    if not (stats and pStats) then
+        log("error", "Failed to load ProfileStats or PlayerStats after retries.")
+        return false
+    end
+
+    local money, level, style, flow
+    for i = 1, 3 do -- ลอง 3 ครั้งสำหรับข้อมูลย่อย
+        money = stats:WaitForChild("Money", 5)
+        level = stats:WaitForChild("Level", 5)
+        style = pStats:WaitForChild("Style", 5)
+        flow = pStats:WaitForChild("Flow", 5)
+        if money and level and style and flow then break end
+        log("warning", "Sub-stats not loaded, retrying (" .. i .. "/3)...")
+        task.wait(3) -- รอเพิ่ม 3 วินาทีก่อนลองใหม่
+    end
 
     if not (money and level and style and flow) then
-        log("error", "Failed to load all stats within timeout.")
+        log("error", "Failed to load all stats after retries.")
         return false
+    end
+
+    -- Validate initial values
+    if money.Value < 0 or level.Value <= 0 then
+        log("warning", "Initial data invalid, waiting for valid values...")
+        task.wait(5) -- รอเพิ่มเพื่อให้ข้อมูลอัพเดต
+        if money.Value < 0 or level.Value <= 0 then
+            log("error", "Data still invalid after wait.")
+            return false
+        end
     end
 
     log("success", "All data loaded successfully.")
@@ -166,9 +196,17 @@ local function WaitForDataToLoad()
 end
 
 local debounce = false
+local initialRun = true
 local function SaveAndSendData()
     if debounce then return end
     debounce = true
+
+    -- Delay on initial run after rejoin
+    if initialRun then
+        log("info", "Initial run after join/rejoin, waiting for data stabilization...")
+        task.wait(10) -- รอ 10 วินาทีหลังเข้าเกมเพื่อให้ข้อมูลโหลดสมบูรณ์
+        initialRun = false
+    end
 
     local player = game:GetService("Players").LocalPlayer
     if not WaitForDataToLoad() then
@@ -179,20 +217,17 @@ local function SaveAndSendData()
     local stats = player.ProfileStats
     local pStats = player.PlayerStats
 
-    -- Extract and validate data
     local money = stats.Money.Value
     local level = stats.Level.Value
     local style = FormatStyle(pStats.Style.Value)
     local flow = FormatFlow(pStats.Flow.Value)
 
-    -- Validate data before saving/sending
     if money < 0 or level <= 0 then
         log("warning", "Invalid data detected (Money: " .. money .. ", Level: " .. level .. "), skipping save.")
         debounce = false
         return
     end
 
-    -- Save data
     local dataSaved = false
     local saveSuccess, saveErr = pcall(function()
         SavePlayerData(player.Name, style, flow, level)
@@ -204,7 +239,6 @@ local function SaveAndSendData()
         log("success", "Data saved successfully.")
     end
 
-    -- Send data to RAMAccount
     local dataSent = false
     local sendSuccess, sendErr = pcall(function()
         local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
@@ -225,11 +259,10 @@ local function SaveAndSendData()
         log("error", "Save and send operations did not complete successfully.")
     end
 
-    task.wait(2) -- Debounce delay
+    task.wait(2)
     debounce = false
 end
 
--- Save data before leaving
 game.Players.LocalPlayer.OnRemove:Connect(function()
     log("info", "Player is leaving, saving final data...")
     SaveAndSendData()
@@ -242,8 +275,10 @@ task.spawn(function()
     local pStats = player:WaitForChild("PlayerStats", 10)
 
     if stats and pStats then
-        SaveAndSendData() -- Initial save
+        SaveAndSendData() -- Initial save after delay
 
+        -- Event listeners with initial delay
+        task.wait(10) -- รอ 10 วินาทีก่อนเริ่มฟัง event เพื่อให้ข้อมูลเสถียร
         stats.Money.Changed:Connect(function()
             SaveAndSendData()
         end)
@@ -285,7 +320,7 @@ end
 
 task.spawn(function()
     log("info", "Starting auto-kick monitoring")
-    task.wait(5)
+    task.wait(10) -- รอ 10 วินาทีหลังเริ่มเพื่อให้ข้อมูลโหลด
 
     local success, err = pcall(function()
         CheckAndKickSelf()
