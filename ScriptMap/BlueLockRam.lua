@@ -191,8 +191,10 @@ local function SaveAndSendData()
     local flow = pStats:FindFirstChild("Flow") and FormatFlow(pStats.Flow.Value) or "none"
 
     -- Save data
+    local dataSaved = false
     local saveSuccess, saveErr = pcall(function()
         SavePlayerData(player.Name, style, flow, level)
+        dataSaved = true
     end)
     if not saveSuccess then
         log("error", "Error saving data: " .. tostring(saveErr))
@@ -201,16 +203,25 @@ local function SaveAndSendData()
     end
 
     -- Send data to RAMAccount
+    local dataSent = false
     local sendSuccess, sendErr = pcall(function()
         local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
         local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
         MyAccount:SetAlias(alias)
         MyAccount:SetDescription(description)
+        dataSent = true
     end)
     if not sendSuccess then
         log("error", "Error sending data: " .. tostring(sendErr))
     else
         log("success", "Data sent successfully.")
+    end
+
+    -- Final confirmation
+    if dataSaved and dataSent then
+        log("success", "Save and send operations completed successfully.")
+    else
+        log("error", "Save and send operations did not complete successfully.")
     end
 end
 
