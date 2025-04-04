@@ -105,37 +105,48 @@ local function LoadPlayerData()
     
     local data, lines = {}, readfile(fileName):split("\n")
     for _, line in ipairs(lines) do
-        local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
+        local username, style, flow = line:match("([^:]+):([^:]*):([^:]*)")
         if username then
-            data[username] = { 
-                style = style ~= "" and style or "none", 
-                flow = flow ~= "" and flow or "none", 
-                level = tonumber(level) or 0 
-            }
+            data[username] = { style = style ~= "" and style or "none", flow = flow ~= "" and flow or "none" }
         end
     end
     return data
 end
 
 -- Function to save player data
-local function SavePlayerData(username, style, flow, level)
+local function SavePlayerData(username, style, flow)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
 
-    if not isfolder(folderName) then makefolder(folderName) end
+    -- Ensure folder exists
+    if not isfolder(folderName) then
+        local success, err = pcall(function()
+            makefolder(folderName)
+        end)
+        if not success then
+            log("error", "Failed to create folder: " .. tostring(err))
+            return
+        else
+            log("success", "Folder created: " .. folderName)
+        end
+    end
+
+    -- Load existing data
     local playerData = LoadPlayerData()
-    playerData[username] = { style = style, flow = flow, level = level }
-    
+    playerData[username] = { style = style, flow = flow }
+
+    -- Prepare data for saving
     local lines = {}
     for uname, data in pairs(playerData) do
-        table.insert(lines, string.format("%s:%s:%s:%d", uname, data.style, data.flow, data.level))
+        table.insert(lines, string.format("%s:%s:%s", uname, data.style, data.flow))
     end
-    
+
+    -- Write data to file
     local success, err = pcall(function()
         writefile(fileName, table.concat(lines, "\n"))
     end)
     if not success then
-        log("error", "Save failed: " .. tostring(err))
+        log("error", "Failed to save file: " .. tostring(err))
     else
         log("success", "Data saved successfully: " .. fileName)
     end
@@ -166,7 +177,7 @@ if MyAccount then
                     local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
                     MyAccount:SetAlias(alias)
                     MyAccount:SetDescription(description)
-                    SavePlayerData(player.Name, style, flow, level)
+                    SavePlayerData(player.Name, style, flow)
                 end
             end)
             
