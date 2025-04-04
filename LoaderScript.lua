@@ -49,13 +49,15 @@ else
     warn("🚫 โหลดเกมไม่สำเร็จ!")
 end
 
--- Table เก็บข้อมูลสคริปต์แต่ละเกม
+-- Table เก็บข้อมูลสคริปต์แต่ละเกม (รองรับหลาย ID ต่อแมพ)
 local scripts = {
-    [116614712661486] = { -- ตัวอย่าง Game ID 1
+    {
+        ids = {116614712661486}, -- ตัวอย่าง Game IDs สำหรับ AriseCrossoverAFK
         name = "AriseCrossoverAFK",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
     },
-    [115110570222234] = { -- ตัวอย่าง Game ID 2
+    {
+        ids = {115110570222234, 18668065416}, -- ตัวอย่าง Game IDs สำหรับ BlueLockRivals
         name = "BlueLockRivals",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
     },
@@ -63,11 +65,23 @@ local scripts = {
 
 -- ตรวจสอบ Game ID ปัจจุบัน
 local currentGame = game.PlaceId
+local matchedScript = nil
 
--- ตรวจสอบว่า Game ID ตรงกับสคริปต์ใน table หรือไม่
-if scripts[currentGame] then
-    local mapName = scripts[currentGame].name
-    local scriptUrl = scripts[currentGame].url
+-- ค้นหาแมพที่มี ID ตรงกับ currentGame
+for _, script in ipairs(scripts) do
+    for _, id in ipairs(script.ids) do
+        if id == currentGame then
+            matchedScript = script
+            break
+        end
+    end
+    if matchedScript then break end
+end
+
+-- ตรวจสอบว่าเจอแมพที่ตรงกับ ID หรือไม่
+if matchedScript then
+    local mapName = matchedScript.name
+    local scriptUrl = matchedScript.url
     print("🌐 พบสคริปต์: " .. mapName .. " (ID: " .. currentGame .. ")")
     
     -- ตรวจสอบว่าฟังก์ชัน loadstring หรือ load พร้อมใช้งานหรือไม่
