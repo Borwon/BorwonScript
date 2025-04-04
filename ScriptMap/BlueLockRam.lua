@@ -105,26 +105,30 @@ local function LoadPlayerData()
     
     local data, lines = {}, readfile(fileName):split("\n")
     for _, line in ipairs(lines) do
-        local username, style, flow = line:match("([^:]+):([^:]*):([^:]*)")
+        local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
         if username then
-            data[username] = { style = style ~= "" and style or "none", flow = flow ~= "" and flow or "none" }
+            data[username] = { 
+                style = style ~= "" and style or "none", 
+                flow = flow ~= "" and flow or "none", 
+                level = tonumber(level) or 0 
+            }
         end
     end
     return data
 end
 
 -- Function to save player data
-local function SavePlayerData(username, style, flow)
+local function SavePlayerData(username, style, flow, level)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
 
     if not isfolder(folderName) then makefolder(folderName) end
     local playerData = LoadPlayerData()
-    playerData[username] = { style = style, flow = flow }
+    playerData[username] = { style = style, flow = flow, level = level }
     
     local lines = {}
     for uname, data in pairs(playerData) do
-        table.insert(lines, string.format("%s:%s:%s", uname, data.style, data.flow))
+        table.insert(lines, string.format("%s:%s:%s:%d", uname, data.style, data.flow, data.level))
     end
     
     local success, err = pcall(function()
@@ -162,7 +166,7 @@ if MyAccount then
                     local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
                     MyAccount:SetAlias(alias)
                     MyAccount:SetDescription(description)
-                    SavePlayerData(player.Name, style, flow)
+                    SavePlayerData(player.Name, style, flow, level)
                 end
             end)
             
