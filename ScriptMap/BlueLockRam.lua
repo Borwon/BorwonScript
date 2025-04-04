@@ -98,11 +98,24 @@ end
 -- =====================
 -- DATA MANAGEMENT
 -- =====================
--- Function to load player data from file
+-- =====================
+-- DATA LOADING OPTIMIZATION
+-- =====================
+-- Cache for loaded data to avoid redundant loading
+local cachedData = nil
+
+-- Function to load player data from file (optimized to use caching)
 local function LoadPlayerData()
+    if cachedData then
+        return cachedData -- Return cached data if already loaded
+    end
+
     local fileName = "Idcheck/PlayerData/player_data.txt"
-    if not isfile(fileName) then return {} end
-    
+    if not isfile(fileName) then
+        cachedData = {}
+        return cachedData
+    end
+
     local data, lines = {}, readfile(fileName):split("\n")
     for _, line in ipairs(lines) do
         local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
@@ -114,10 +127,12 @@ local function LoadPlayerData()
             }
         end
     end
+
+    cachedData = data -- Cache the loaded data
     return data
 end
 
--- Function to save player data
+-- Function to save player data (invalidate cache after saving)
 local function SavePlayerData(username, style, flow, level)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
@@ -138,8 +153,8 @@ local function SavePlayerData(username, style, flow, level)
     -- Load existing data
     local playerData = LoadPlayerData()
 
-    -- Add a longer delay to ensure data is fully loaded
-    task.wait(5) -- Wait for 5 seconds to ensure data consistency
+    -- Add a delay to ensure data consistency
+    task.wait(5)
 
     -- Update player data
     playerData[username] = { style = style, flow = flow, level = level }
@@ -158,6 +173,7 @@ local function SavePlayerData(username, style, flow, level)
         log("error", "Failed to save file: " .. tostring(err))
     else
         log("success", "Data saved successfully: " .. fileName)
+        cachedData = nil -- Invalidate cache after saving
     end
 end
 

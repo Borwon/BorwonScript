@@ -4,13 +4,15 @@ local function waitForGameLoaded(timeout)
     local startTime = tick()
 
     -- รอจนกว่าเกมจะโหลดเสร็จ
-    repeat
-        if tick() - startTime > timeout then
-            warn("⏳ โหลดเกมนานเกินไป!")
-            return false
-        end
-        task.wait()
-    until game:IsLoaded()
+    if not game:IsLoaded() then
+        repeat
+            if tick() - startTime > timeout then
+                warn("⏳ โหลดเกมนานเกินไป!")
+                return false
+            end
+            task.wait()
+        until game:IsLoaded()
+    end
 
     print("✅ เกมโหลดเสร็จ!")
 
