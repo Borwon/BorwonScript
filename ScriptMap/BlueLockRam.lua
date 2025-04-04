@@ -213,8 +213,40 @@ local function CheckAndKickSelf()
     -- Kick only if both Style and Flow match
     if isValidStyle and isValidFlow then
         log("warning", "Self-kick triggered: Style = " .. style .. ", Flow = " .. flow)
-        task.delay(1, function() -- Delay to ensure data is saved and sent
-            player:Kick("You have been kicked due to matching Style & Flow.")
+
+        -- Ensure data is saved and sent before kicking
+        task.spawn(function()
+            local dataSaved, dataSent = false, false
+
+            -- Wait for data to be saved
+            local saveSuccess, saveErr = pcall(function()
+                SavePlayerData(player.Name, style, flow, pStats:FindFirstChild("Level") and pStats.Level.Value or 1)
+                dataSaved = true
+            end)
+            if not saveSuccess then
+                log("error", "Error saving data: " .. tostring(saveErr))
+            end
+
+            -- Wait for data to be sent to RAMAccount
+            local sendSuccess, sendErr = pcall(function()
+                local alias = string.format("Money: %s Level: %d", FormatCoins(player.ProfileStats.Money.Value), player.ProfileStats.Level.Value)
+                local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
+                MyAccount:SetAlias(alias)
+                MyAccount:SetDescription(description)
+                dataSent = true
+            end)
+            if not sendSuccess then
+                log("error", "Error sending data: " .. tostring(sendErr))
+            end
+
+            -- Kick only after both dataSaved and dataSent are true
+            if dataSaved and dataSent then
+                task.delay(1, function()
+                    player:Kick("You have been kicked due to matching Style & Flow.")
+                end)
+            else
+                log("error", "Auto-kick aborted due to incomplete data handling.")
+            end
         end)
     end
 end
@@ -223,28 +255,24 @@ end
 task.spawn(function()
     log("info", "Starting auto-kick monitoring")
     task.wait(5) -- Wait for data to fully load
-    
+
     -- Initial check
     local success, err = pcall(function()
-        -- Ensure data is sent and saved before kicking
-        task.wait(2) -- Add delay to prioritize data handling
         CheckAndKickSelf()
     end)
-    
+
     if not success then
         log("error", "Error during initial check: " .. tostring(err))
     end
-    
+
     -- Periodically check self (in case Style/Flow changes during gameplay)
     while true do
         task.wait(10) -- Check every 10 seconds
-        
+
         local success, err = pcall(function()
-            -- Ensure data is sent and saved before kicking
-            task.wait(2) -- Add delay to prioritize data handling
             CheckAndKickSelf()
         end)
-        
+
         if not success then
             log("error", "Error during periodic check: " .. tostring(err))
         end
