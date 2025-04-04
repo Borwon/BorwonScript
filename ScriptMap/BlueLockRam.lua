@@ -159,6 +159,61 @@ end
 -- =====================
 -- ACCOUNT MANAGEMENT
 -- =====================
+-- Function to ensure all data is loaded before proceeding
+local function WaitForDataToLoad()
+    local player = game:GetService("Players").LocalPlayer
+    local stats = player:FindFirstChild("ProfileStats")
+    local pStats = player:FindFirstChild("PlayerStats")
+
+    -- Wait until both ProfileStats and PlayerStats are fully loaded
+    while not (stats and pStats and stats:FindFirstChild("Money") and stats:FindFirstChild("Level") and pStats:FindFirstChild("Style") and pStats:FindFirstChild("Flow")) do
+        log("info", "Waiting for data to load...")
+        task.wait(1)
+        stats = player:FindFirstChild("ProfileStats")
+        pStats = player:FindFirstChild("PlayerStats")
+    end
+    log("success", "All data loaded successfully.")
+end
+
+-- Function to handle data saving and sending
+local function SaveAndSendData()
+    local player = game:GetService("Players").LocalPlayer
+    local stats = player:FindFirstChild("ProfileStats")
+    local pStats = player:FindFirstChild("PlayerStats")
+
+    -- Ensure data is loaded
+    WaitForDataToLoad()
+
+    -- Extract data
+    local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
+    local level = stats:FindFirstChild("Level") and stats.Level.Value or 1
+    local style = pStats:FindFirstChild("Style") and FormatStyle(pStats.Style.Value) or "none"
+    local flow = pStats:FindFirstChild("Flow") and FormatFlow(pStats.Flow.Value) or "none"
+
+    -- Save data
+    local saveSuccess, saveErr = pcall(function()
+        SavePlayerData(player.Name, style, flow, level)
+    end)
+    if not saveSuccess then
+        log("error", "Error saving data: " .. tostring(saveErr))
+    else
+        log("success", "Data saved successfully.")
+    end
+
+    -- Send data to RAMAccount
+    local sendSuccess, sendErr = pcall(function()
+        local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
+        local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
+        MyAccount:SetAlias(alias)
+        MyAccount:SetDescription(description)
+    end)
+    if not sendSuccess then
+        log("error", "Error sending data: " .. tostring(sendErr))
+    else
+        log("success", "Data sent successfully.")
+    end
+end
+
 -- Initialize RAMAccount
 repeat task.wait()
     MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
@@ -168,21 +223,7 @@ if MyAccount then
     task.spawn(function()
         while true do
             local success, err = pcall(function()
-                local player = game:GetService("Players").LocalPlayer
-                local stats = player:FindFirstChild("ProfileStats")
-                local pStats = player:FindFirstChild("PlayerStats")
-                if stats and pStats then
-                    local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
-                    local level = stats:FindFirstChild("Level") and stats.Level.Value or 1
-                    local style = pStats:FindFirstChild("Style") and FormatStyle(pStats.Style.Value) or "none"
-                    local flow = pStats:FindFirstChild("Flow") and FormatFlow(pStats.Flow.Value) or "none"
-                    
-                    local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
-                    local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
-                    MyAccount:SetAlias(alias)
-                    MyAccount:SetDescription(description)
-                    SavePlayerData(player.Name, style, flow, level)
-                end
+                SaveAndSendData()
             end)
             
             if not success then
@@ -216,37 +257,9 @@ local function CheckAndKickSelf()
 
         -- Ensure data is saved and sent before kicking
         task.spawn(function()
-            local dataSaved, dataSent = false, false
-
-            -- Wait for data to be saved
-            local saveSuccess, saveErr = pcall(function()
-                SavePlayerData(player.Name, style, flow, pStats:FindFirstChild("Level") and pStats.Level.Value or 1)
-                dataSaved = true
-            end)
-            if not saveSuccess then
-                log("error", "Error saving data: " .. tostring(saveErr))
-            end
-
-            -- Wait for data to be sent to RAMAccount
-            local sendSuccess, sendErr = pcall(function()
-                local alias = string.format("Money: %s Level: %d", FormatCoins(player.ProfileStats.Money.Value), player.ProfileStats.Level.Value)
-                local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
-                MyAccount:SetAlias(alias)
-                MyAccount:SetDescription(description)
-                dataSent = true
-            end)
-            if not sendSuccess then
-                log("error", "Error sending data: " .. tostring(sendErr))
-            end
-
-            -- Kick only after both dataSaved and dataSent are true
-            if dataSaved and dataSent then
-                task.delay(1, function()
-                    player:Kick("You have been kicked due to matching Style & Flow.")
-                end)
-            else
-                log("error", "Auto-kick aborted due to incomplete data handling.")
-            end
+            SaveAndSendData() -- Ensure data is handled first
+            task.wait(1) -- Small delay to ensure operations complete
+            player:Kick("You have been kicked due to matching Style & Flow.")
         end)
     end
 end
