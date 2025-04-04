@@ -152,12 +152,12 @@ local function WaitForDataToLoad()
     local stats, pStats
 
     -- Initial wait with retry
-    for i = 1, 3 do -- ลอง 3 ครั้ง
+    for i = 1, 3 do
         stats = player:WaitForChild("ProfileStats", 10)
         pStats = player:WaitForChild("PlayerStats", 10)
         if stats and pStats then break end
         log("warning", "Stats not loaded, retrying (" .. i .. "/3)...")
-        task.wait(5) -- รอเพิ่ม 5 วินาทีก่อนลองใหม่
+        task.wait(5)
     end
 
     if not (stats and pStats) then
@@ -166,14 +166,14 @@ local function WaitForDataToLoad()
     end
 
     local money, level, style, flow
-    for i = 1, 3 do -- ลอง 3 ครั้งสำหรับข้อมูลย่อย
+    for i = 1, 3 do
         money = stats:WaitForChild("Money", 5)
         level = stats:WaitForChild("Level", 5)
         style = pStats:WaitForChild("Style", 5)
         flow = pStats:WaitForChild("Flow", 5)
         if money and level and style and flow then break end
         log("warning", "Sub-stats not loaded, retrying (" .. i .. "/3)...")
-        task.wait(3) -- รอเพิ่ม 3 วินาทีก่อนลองใหม่
+        task.wait(3)
     end
 
     if not (money and level and style and flow) then
@@ -181,10 +181,9 @@ local function WaitForDataToLoad()
         return false
     end
 
-    -- Validate initial values
     if money.Value < 0 or level.Value <= 0 then
         log("warning", "Initial data invalid, waiting for valid values...")
-        task.wait(5) -- รอเพิ่มเพื่อให้ข้อมูลอัพเดต
+        task.wait(5)
         if money.Value < 0 or level.Value <= 0 then
             log("error", "Data still invalid after wait.")
             return false
@@ -201,10 +200,9 @@ local function SaveAndSendData()
     if debounce then return end
     debounce = true
 
-    -- Delay on initial run after rejoin
     if initialRun then
         log("info", "Initial run after join/rejoin, waiting for data stabilization...")
-        task.wait(10) -- รอ 10 วินาทีหลังเข้าเกมเพื่อให้ข้อมูลโหลดสมบูรณ์
+        task.wait(10)
         initialRun = false
     end
 
@@ -263,9 +261,12 @@ local function SaveAndSendData()
     debounce = false
 end
 
-game.Players.LocalPlayer.OnRemove:Connect(function()
-    log("info", "Player is leaving, saving final data...")
-    SaveAndSendData()
+-- Use PlayerRemoving instead of OnRemove
+game.Players.PlayerRemoving:Connect(function(player)
+    if player == game.Players.LocalPlayer then
+        log("info", "Player is leaving, saving final data...")
+        SaveAndSendData()
+    end
 end)
 
 -- Initialize RAMAccount with event listeners
@@ -275,10 +276,9 @@ task.spawn(function()
     local pStats = player:WaitForChild("PlayerStats", 10)
 
     if stats and pStats then
-        SaveAndSendData() -- Initial save after delay
+        SaveAndSendData()
 
-        -- Event listeners with initial delay
-        task.wait(10) -- รอ 10 วินาทีก่อนเริ่มฟัง event เพื่อให้ข้อมูลเสถียร
+        task.wait(10)
         stats.Money.Changed:Connect(function()
             SaveAndSendData()
         end)
@@ -320,7 +320,7 @@ end
 
 task.spawn(function()
     log("info", "Starting auto-kick monitoring")
-    task.wait(10) -- รอ 10 วินาทีหลังเริ่มเพื่อให้ข้อมูลโหลด
+    task.wait(10)
 
     local success, err = pcall(function()
         CheckAndKickSelf()
