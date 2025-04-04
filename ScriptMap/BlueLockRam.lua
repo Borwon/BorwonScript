@@ -8,7 +8,7 @@ local config = {
 
 -- Ensure game is fully loaded before executing
 repeat task.wait() until game:IsLoaded() and game.Players and game.Players.LocalPlayer and game.Players.LocalPlayer.Character
-print(" Script Started")
+print("Script Started")
 
 -- Apply Configurations
 setfpscap(config.fps_cap) -- Set FPS cap
@@ -22,9 +22,24 @@ if config.optimize_lighting then
     game:GetService("Lighting").TimeOfDay = "12:00:00"
 end
 
--- Load RAMAccount Library
-local RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
+-- Load RAMAccount Library with error handling
+local RAMAccount
+local success, err = pcall(function()
+    RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
+end)
+if not success then
+    print("[ERROR] Failed to load RAMAccount: " .. tostring(err))
+    return
+end
+
 local MyAccount
+success, err = pcall(function()
+    MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
+end)
+if not success or not MyAccount then
+    print("[ERROR] Failed to initialize RAMAccount: " .. tostring(err))
+    return
+end
 
 -- Function to format large numbers
 local function FormatCoins(value)
@@ -35,24 +50,6 @@ local function FormatCoins(value)
     else
         return tostring(value)
     end
-end
-
--- Function to validate Style
-local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
-local function FormatStyle(style)
-    for _, v in pairs(validStyles) do
-        if v == style then return style end
-    end
-    return "none"
-end
-
--- Function to validate Flow
-local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
-local function FormatFlow(flow)
-    for _, v in pairs(validFlows) do
-        if v == flow then return flow end
-    end
-    return "none"
 end
 
 -- =====================
@@ -76,7 +73,6 @@ log("info", "Script Started")
 -- =====================
 -- STYLE AND FLOW VALIDATION
 -- =====================
--- Valid styles and flows
 local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
 local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
 
@@ -138,9 +134,6 @@ local function SavePlayerData(username, style, flow, level)
     -- Load existing data
     local playerData = LoadPlayerData()
 
-    -- Add a delay to ensure data consistency
-    task.wait(5)
-
     -- Update player data
     playerData[username] = { style = style, flow = flow, level = level }
 
@@ -164,39 +157,44 @@ end
 -- =====================
 -- ACCOUNT MANAGEMENT
 -- =====================
--- Function to ensure all data is loaded before proceeding
+-- Function to ensure all data is loaded before proceeding with timeout
 local function WaitForDataToLoad()
     local player = game:GetService("Players").LocalPlayer
-    local stats = player:FindFirstChild("ProfileStats")
-    local pStats = player:FindFirstChild("PlayerStats")
+    local stats = player:WaitForChild("ProfileStats", 10) -- Timeout 10 seconds
+    local pStats = player:WaitForChild("PlayerStats", 10)
 
-    -- Wait until both ProfileStats and PlayerStats are fully loaded
-    while not (stats and pStats and stats:FindFirstChild("Money") and stats:FindFirstChild("Level") and pStats:FindFirstChild("Style") and pStats:FindFirstChild("Flow")) do
-        log("info", "Waiting for data to load...")
-        task.wait(1)
-        stats = player:FindFirstChild("ProfileStats")
-        pStats = player:FindFirstChild("PlayerStats")
+    if not (stats and pStats) then
+        log("error", "Failed to load ProfileStats or PlayerStats within 10 seconds.")
+        return false
     end
+
+    local money = stats:WaitForChild("Money", 5)
+    local level = stats:WaitForChild("Level", 5)
+    local style = pStats:WaitForChild("Style", 5)
+    local flow = pStats:WaitForChild("Flow", 5)
+
+    if not (money and level and style and flow) then
+        log("error", "Failed to load all stats within timeout.")
+        return false
+    end
+
     log("success", "All data loaded successfully.")
+    return true
 end
 
 -- Function to handle data saving and sending
 local function SaveAndSendData()
     local player = game:GetService("Players").LocalPlayer
-    local stats = player:FindFirstChild("ProfileStats")
-    local pStats = player:FindFirstChild("PlayerStats")
+    if not WaitForDataToLoad() then return end
 
-    -- Ensure data is loaded
-    WaitForDataToLoad()
+    local stats = player.ProfileStats
+    local pStats = player.PlayerStats
 
     -- Extract data
-    local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
-    local level = stats:FindFirstChild("Level") and stats.Level.Value or 1
-    local style = pStats:FindFirstChild("Style") and FormatStyle(pStats.Style.Value) or "none"
-    local flow = pStats:FindFirstChild("Flow") and FormatFlow(pStats.Flow.Value) or "none"
-
-    -- Add a longer delay to ensure data consistency before saving and sending
-    task.wait(5) -- Wait for 5 seconds to ensure data is fully loaded
+    local money = stats.Money.Value
+    local level = stats.Level.Value
+    local style = FormatStyle(pStats.Style.Value)
+    local flow = FormatFlow(pStats.Flow.Value)
 
     -- Save data
     local dataSaved = false
@@ -233,31 +231,37 @@ local function SaveAndSendData()
     end
 end
 
--- Initialize RAMAccount
-repeat task.wait()
-    MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
-until MyAccount
+-- Initialize RAMAccount with event listeners
+task.spawn(function()
+    local player = game:GetService("Players").LocalPlayer
+    local stats = player:WaitForChild("ProfileStats", 10)
+    local pStats = player:WaitForChild("PlayerStats", 10)
 
-if MyAccount then
-    task.spawn(function()
-        while true do
-            local success, err = pcall(function()
-                SaveAndSendData()
-            end)
-            
-            if not success then
-                log("error", "Error fetching stats: " .. tostring(err))
-            end
-            
-            task.wait(60) -- Update every 1 minute
-        end
-    end)
-end
+    if stats and pStats then
+        -- Initial save
+        SaveAndSendData()
+
+        -- Use event listeners to update on change
+        stats.Money.Changed:Connect(function()
+            SaveAndSendData()
+        end)
+        stats.Level.Changed:Connect(function()
+            SaveAndSendData()
+        end)
+        pStats.Style.Changed:Connect(function()
+            SaveAndSendData()
+        end)
+        pStats.Flow.Changed:Connect(function()
+            SaveAndSendData()
+        end)
+    else
+        log("error", "Failed to set up event listeners due to missing stats.")
+    end
+end)
 
 -- =====================
 -- AUTO-KICK FUNCTIONALITY
 -- =====================
--- Function to auto-kick if local player has matching Style and Flow
 local function CheckAndKickSelf()
     local player = game:GetService("Players").LocalPlayer
     local pStats = player:FindFirstChild("PlayerStats")
@@ -266,18 +270,14 @@ local function CheckAndKickSelf()
     local style = pStats:FindFirstChild("Style") and pStats.Style.Value or "none"
     local flow = pStats:FindFirstChild("Flow") and pStats.Flow.Value or "none"
 
-    -- Use lookup tables for faster validation
     local isValidStyle = styleMap[style] or false
     local isValidFlow = flowMap[flow] or false
 
-    -- Kick only if both Style and Flow match
     if isValidStyle and isValidFlow then
         log("warning", "Self-kick triggered: Style = " .. style .. ", Flow = " .. flow)
-
-        -- Ensure data is saved and sent before kicking
         task.spawn(function()
-            SaveAndSendData() -- Ensure data is handled first
-            task.wait(1) -- Small delay to ensure operations complete
+            SaveAndSendData()
+            task.wait(1)
             player:Kick("You have been kicked due to matching Style & Flow.")
         end)
     end
@@ -286,9 +286,8 @@ end
 -- Check self when the game loads
 task.spawn(function()
     log("info", "Starting auto-kick monitoring")
-    task.wait(5) -- Wait for data to fully load
+    task.wait(5)
 
-    -- Initial check
     local success, err = pcall(function()
         CheckAndKickSelf()
     end)
@@ -297,14 +296,11 @@ task.spawn(function()
         log("error", "Error during initial check: " .. tostring(err))
     end
 
-    -- Periodically check self (in case Style/Flow changes during gameplay)
     while true do
-        task.wait(10) -- Check every 10 seconds
-
+        task.wait(10)
         local success, err = pcall(function()
             CheckAndKickSelf()
         end)
-
         if not success then
             log("error", "Error during periodic check: " .. tostring(err))
         end
