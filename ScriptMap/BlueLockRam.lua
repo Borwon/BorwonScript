@@ -73,7 +73,7 @@ end
 log("info", "Script Started")
 
 -- Style and Flow Validation
-local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser"}
+local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser", "King"}
 local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
 local styleMap, flowMap = {}, {}
 for _, s in ipairs(validStyles) do styleMap[s] = true end
