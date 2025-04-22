@@ -92,16 +92,16 @@ if not WaitForDataToLoad() then
     return
 end
 
--- Add a delay to account for the loading screen
-log("info", "Waiting for loading screen to finish...")
-task.wait(15) -- รอ 15 วินาทีสำหรับ loading screen
+-- Add a longer delay to account for the loading screen and data initialization
+log("info", "Waiting for loading screen and data initialization...")
+task.wait(20) -- รอ 20 วินาทีสำหรับ loading screen และการโหลดข้อมูล
 
 -- Ensure Gems data is fully loaded
 local function WaitForGemsData()
     local player = game:GetService("Players").LocalPlayer
     local gemsFrame, gemsText
 
-    for i = 1, 5 do -- ลองโหลดข้อมูล Gems 5 ครั้ง
+    for i = 1, 7 do -- ลองโหลดข้อมูล Gems 7 ครั้ง
         local success = pcall(function()
             gemsFrame = player.PlayerGui.HUD.MenuFrame.LeftSide.Frame:FindFirstChild("Gems")
             gemsText = gemsFrame and gemsFrame:FindFirstChild("Numbers")
@@ -112,8 +112,8 @@ local function WaitForGemsData()
             return true
         end
 
-        log("warning", "Gems data not loaded, retrying (" .. i .. "/5)...")
-        task.wait(3) -- รอ 3 วินาทีก่อนลองใหม่
+        log("warning", "Gems data not loaded, retrying (" .. i .. "/7)...")
+        task.wait(4) -- รอ 4 วินาทีก่อนลองใหม่
     end
 
     log("error", "Failed to load Gems data after retries.")
