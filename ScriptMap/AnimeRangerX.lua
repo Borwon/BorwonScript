@@ -130,7 +130,7 @@ local function WaitForUnitData()
     local player = game:GetService("Players").LocalPlayer
     local playerUnits
 
-    for i = 1, 7 do -- ลองโหลดข้อมูล Unit 7 ครั้ง
+    for i = 1, 10 do -- เพิ่มจำนวนครั้งเป็น 10 ครั้ง
         local success = pcall(function()
             playerUnits = workspace:FindFirstChild("PlayerUnit") and workspace.PlayerUnit:FindFirstChild(player.Name)
         end)
@@ -140,8 +140,8 @@ local function WaitForUnitData()
             return true
         end
 
-        log("warning", "Unit data not loaded, retrying (" .. i .. "/7)...")
-        task.wait(4) -- รอ 4 วินาทีก่อนลองใหม่
+        log("warning", "Unit data not loaded, retrying (" .. i .. "/10)...")
+        task.wait(5) -- เพิ่มเวลารอเป็น 5 วินาทีก่อนลองใหม่
     end
 
     log("error", "Failed to load Unit data after retries.")
