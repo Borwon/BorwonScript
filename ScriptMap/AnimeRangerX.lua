@@ -96,64 +96,6 @@ end
 log("info", "Waiting for loading screen and data initialization...")
 task.wait(20) -- รอ 20 วินาทีสำหรับ loading screen และการโหลดข้อมูล
 
--- Ensure Gems data is fully loaded
-local function WaitForGemsData()
-    local player = game:GetService("Players").LocalPlayer
-    local gemsFrame, gemsText
-
-    for i = 1, 7 do -- ลองโหลดข้อมูล Gems 7 ครั้ง
-        local success = pcall(function()
-            gemsFrame = player.PlayerGui.HUD.MenuFrame.LeftSide.Frame:FindFirstChild("Gems")
-            gemsText = gemsFrame and gemsFrame:FindFirstChild("Numbers")
-        end)
-
-        if success and gemsText then
-            log("success", "Gems data loaded successfully.")
-            return true
-        end
-
-        log("warning", "Gems data not loaded, retrying (" .. i .. "/7)...")
-        task.wait(4) -- รอ 4 วินาทีก่อนลองใหม่
-    end
-
-    log("error", "Failed to load Gems data after retries.")
-    return false
-end
-
-if not WaitForGemsData() then
-    log("error", "Gems data failed to load. Script will terminate.")
-    return
-end
-
--- Ensure Unit data is fully loaded
-local function WaitForUnitData()
-    local player = game:GetService("Players").LocalPlayer
-    local playerUnits
-
-    for i = 1, 10 do -- เพิ่มจำนวนครั้งเป็น 10 ครั้ง
-        local success = pcall(function()
-            playerUnits = workspace:FindFirstChild("PlayerUnit") and workspace.PlayerUnit:FindFirstChild(player.Name)
-        end)
-
-        if success and playerUnits and #playerUnits:GetChildren() > 0 then
-            log("success", "Unit data loaded successfully.")
-            return true
-        end
-
-        log("warning", "Unit data not loaded, retrying (" .. i .. "/10)...")
-        task.wait(5) -- เพิ่มเวลารอเป็น 5 วินาทีก่อนลองใหม่
-    end
-
-    log("error", "Failed to load Unit data after retries.")
-    return false
-end
-
--- Wait for Unit data to load before proceeding
-if not WaitForUnitData() then
-    log("error", "Unit data failed to load. Script will terminate.")
-    return
-end
-
 -- รอจนกว่าจะสร้างบัญชีได้
 repeat task.wait() 
     MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
@@ -162,7 +104,7 @@ until MyAccount
 -- หากบัญชีพร้อมใช้งาน
 if MyAccount then
     task.spawn(function()
-        local updateInterval = 300 -- อัปเดตทุกๆ 300 วินาที
+        local updateInterval = 30 -- อัปเดตทุกๆ 30 วินาที
         while true do
             local gems
             local success, err = pcall(function()
