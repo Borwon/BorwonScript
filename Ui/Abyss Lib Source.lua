@@ -1,3 +1,7 @@
+-- // Lib \\ --
+--[[
+    
+]]
 -- // Library Init \\ --
 local Start = tick()
 local LoadTime = tick()
@@ -1422,15 +1426,7 @@ do
                         --
                         Utility.AddConnection(Library.Communication.Event, function(Type, Color)
                             if Type == "Accent" then
-                                
-                            elseif Type == "LightContrast" then
-                                
-                            elseif Type == "Text" then
-                                
-                            elseif Type == "Inline" then
-                                
-                            elseif Type == "Outline" then
-                                
+                                InternalTopline.Color = Color
                             end
                         end)
                         --
@@ -1649,11 +1645,16 @@ do
                             elseif Type == "LightContrast" then
                                 
                             elseif Type == "Text" then
-                                
+                                InternalTitle.Color = Color
                             elseif Type == "Inline" then
-                                
+                                InternalInline.Color = Color
+                                InternalBaseInline.Color = Color
+                                InternalHueInline.Color = Color
+                                InternalInlineHex.Color = Color
                             elseif Type == "Outline" then
-                                
+                                InternalOutline.Color = Color
+                                InternalOutlineHex.Color = Color
+                                InternalInline.Color = Color
                             end
                         end)
                         --
@@ -4276,5 +4277,3 @@ Maid.DisconnectAll = function()
         Val:Disconnect()
     end
 end
-
-return Library -- Ensure the Library table is returned for external usage
