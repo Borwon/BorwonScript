@@ -92,6 +92,10 @@ if not WaitForDataToLoad() then
     return
 end
 
+-- Add a delay to ensure data is fully initialized
+log("info", "Waiting for data stabilization...")
+task.wait(5) -- เพิ่มการรอ 5 วินาที
+
 -- รอจนกว่าจะสร้างบัญชีได้
 repeat task.wait() 
     MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
