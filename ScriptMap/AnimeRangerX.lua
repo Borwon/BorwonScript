@@ -48,6 +48,50 @@ local function GetUnitNames()
     return #unitNames > 0 and table.concat(unitNames, ", ") or "No Units"
 end
 
+-- Function to wait for data to load
+local function WaitForDataToLoad()
+    local player = game:GetService("Players").LocalPlayer
+    local playerGui, hud, menuFrame, gemsFrame
+
+    -- Initial wait with retry
+    for i = 1, 3 do
+        playerGui = player:WaitForChild("PlayerGui", 10)
+        hud = playerGui:FindFirstChild("HUD")
+        menuFrame = hud and hud:FindFirstChild("MenuFrame")
+        gemsFrame = menuFrame and menuFrame:FindFirstChild("LeftSide") and menuFrame.LeftSide.Frame:FindFirstChild("Gems")
+        if gemsFrame then break end
+        log("warning", "HUD or Gems data not loaded, retrying (" .. i .. "/3)...")
+        task.wait(5)
+    end
+
+    if not gemsFrame then
+        log("error", "Failed to load HUD or Gems data after retries.")
+        return false
+    end
+
+    local gemsText
+    for i = 1, 3 do
+        gemsText = gemsFrame:FindFirstChild("Numbers")
+        if gemsText then break end
+        log("warning", "Gems text not loaded, retrying (" .. i .. "/3)...")
+        task.wait(3)
+    end
+
+    if not gemsText then
+        log("error", "Failed to load Gems text after retries.")
+        return false
+    end
+
+    log("success", "All data loaded successfully.")
+    return true
+end
+
+-- Wait for data to load before proceeding
+if not WaitForDataToLoad() then
+    log("error", "Data failed to load. Script will terminate.")
+    return
+end
+
 -- รอจนกว่าจะสร้างบัญชีได้
 repeat task.wait() 
     MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)

@@ -59,14 +59,9 @@ local scripts = {
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
     },
     {
-        ids = {115110570222234,18668065416}, -- ตัวอย่าง Game IDs สำหรับ BlueLockRivals
+        ids = {115110570222234, 18668065416}, -- ตัวอย่าง Game IDs สำหรับ BlueLockRivals
         name = "BlueLockRivals",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
-    },
-    {
-        ids = {18668065416,72829404259339}, -- ตัวอย่าง Game IDs สำหรับ AnimeRangerX
-        name = "AnimeRangerX",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
     },
 }
 
