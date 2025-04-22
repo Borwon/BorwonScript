@@ -116,6 +116,7 @@ local function SavePlayerData(username, style, flow, level)
     local folderName = "Idcheck/PlayerData"
     local fileName = folderName .. "/player_data.txt"
 
+    -- Ensure folder exists
     if not isfolder(folderName) then
         local success, err = pcall(function()
             makefolder(folderName)
@@ -128,9 +129,11 @@ local function SavePlayerData(username, style, flow, level)
         end
     end
 
+    -- Load existing data and merge with new data
     local playerData = LoadPlayerData()
     playerData[username] = { style = style, flow = flow, level = level }
 
+    -- Write merged data back to file
     local lines = {}
     for uname, data in pairs(playerData) do
         table.insert(lines, string.format("%s:%s:%s:%d", uname, data.style, data.flow, data.level))
@@ -226,10 +229,9 @@ local function SaveAndSendData()
         return
     end
 
-    local dataSaved = false
+    -- Save data
     local saveSuccess, saveErr = pcall(function()
         SavePlayerData(player.Name, style, flow, level)
-        dataSaved = true
     end)
     if not saveSuccess then
         log("error", "Error saving data: " .. tostring(saveErr))
@@ -237,13 +239,12 @@ local function SaveAndSendData()
         log("success", "Data saved successfully.")
     end
 
-    local dataSent = false
+    -- Send data
     local sendSuccess, sendErr = pcall(function()
         local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
         local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
         MyAccount:SetAlias(alias)
         MyAccount:SetDescription(description)
-        dataSent = true
     end)
     if not sendSuccess then
         log("error", "Error sending data: " .. tostring(sendErr))
@@ -251,13 +252,6 @@ local function SaveAndSendData()
         log("success", "Data sent successfully.")
     end
 
-    if dataSaved and dataSent then
-        log("success", "Save and send operations completed successfully.")
-    else
-        log("error", "Save and send operations did not complete successfully.")
-    end
-
-    task.wait(2)
     debounce = false
 end
 
