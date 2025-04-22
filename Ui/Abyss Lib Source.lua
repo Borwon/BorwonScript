@@ -1,7 +1,3 @@
--- // Lib \\ --
---[[
-    local UI = loadstring(game:HttpGet("https://abyss.best/assets/files/gayasf.ui2?key=5y1lxXSfWKhlQkSqhUuFyB8kPp8hsCau"))()
-]]
 -- // Library Init \\ --
 local Start = tick()
 local LoadTime = tick()
