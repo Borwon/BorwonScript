@@ -125,6 +125,35 @@ if not WaitForGemsData() then
     return
 end
 
+-- Ensure Unit data is fully loaded
+local function WaitForUnitData()
+    local player = game:GetService("Players").LocalPlayer
+    local playerUnits
+
+    for i = 1, 7 do -- ลองโหลดข้อมูล Unit 7 ครั้ง
+        local success = pcall(function()
+            playerUnits = workspace:FindFirstChild("PlayerUnit") and workspace.PlayerUnit:FindFirstChild(player.Name)
+        end)
+
+        if success and playerUnits and #playerUnits:GetChildren() > 0 then
+            log("success", "Unit data loaded successfully.")
+            return true
+        end
+
+        log("warning", "Unit data not loaded, retrying (" .. i .. "/7)...")
+        task.wait(4) -- รอ 4 วินาทีก่อนลองใหม่
+    end
+
+    log("error", "Failed to load Unit data after retries.")
+    return false
+end
+
+-- Wait for Unit data to load before proceeding
+if not WaitForUnitData() then
+    log("error", "Unit data failed to load. Script will terminate.")
+    return
+end
+
 -- รอจนกว่าจะสร้างบัญชีได้
 repeat task.wait() 
     MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
