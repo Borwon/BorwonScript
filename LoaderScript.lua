@@ -44,10 +44,56 @@ local function waitForGameLoaded(timeout)
     return true
 end
 
+-- Function to create a status GUI
+local function createStatusGUI()
+    local player = game:GetService("Players").LocalPlayer
+    local playerGui = player:WaitForChild("PlayerGui")
+
+    -- Create ScreenGui
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "ScriptStatusGUI"
+    screenGui.ResetOnSpawn = false
+    screenGui.Parent = playerGui
+
+    -- Create Frame
+    local frame = Instance.new("Frame")
+    frame.Name = "StatusFrame"
+    frame.Size = UDim2.new(0, 200, 0, 50)
+    frame.Position = UDim2.new(1, -210, 0, 10) -- Top-right corner
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    frame.BorderSizePixel = 0
+    frame.Parent = screenGui
+
+    -- Create TextLabel
+    local label = Instance.new("TextLabel")
+    label.Name = "StatusLabel"
+    label.Size = UDim2.new(1, 0, 1, 0)
+    label.BackgroundTransparency = 1
+    label.Text = "Status: Initializing..."
+    label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    label.Font = Enum.Font.SourceSans
+    label.TextSize = 18
+    label.Parent = frame
+
+    return label
+end
+
+-- Function to update the status GUI
+local function updateStatus(label, status, color)
+    label.Text = "Status: " .. status
+    label.TextColor3 = color
+end
+
+-- Create the GUI and initialize the status
+local statusLabel = createStatusGUI()
+updateStatus(statusLabel, "Loading...", Color3.fromRGB(255, 255, 0)) -- Yellow for loading
+
 -- เรียกใช้งานฟังก์ชันรอโหลด
 if waitForGameLoaded() then
+    updateStatus(statusLabel, "Ready", Color3.fromRGB(0, 255, 0)) -- Green for success
     print("✅ พร้อมทำงาน!")
 else
+    updateStatus(statusLabel, "Error", Color3.fromRGB(255, 0, 0)) -- Red for error
     warn("🚫 โหลดเกมไม่สำเร็จ!")
 end
 
@@ -94,6 +140,7 @@ if matchedScript then
     -- ตรวจสอบว่าฟังก์ชัน loadstring หรือ load พร้อมใช้งานหรือไม่
     local executor = loadstring or load
     if not executor then
+        updateStatus(statusLabel, "Error: No Executor", Color3.fromRGB(255, 0, 0)) -- Red for error
         warn("❌ ไม่มีฟังก์ชัน loadstring/load. รันไม่ได้.")
         return
     end
@@ -108,10 +155,13 @@ if matchedScript then
     end)
     
     if not success then
+        updateStatus(statusLabel, "Error: Script Load Failed", Color3.fromRGB(255, 0, 0)) -- Red for error
         warn("❌ โหลดสคริปต์ล้มเหลว: " .. tostring(err))
     else
+        updateStatus(statusLabel, "Running: " .. mapName, Color3.fromRGB(0, 255, 0)) -- Green for success
         print("✅ โหลดสคริปต์ของแมพสำเร็จ!")
     end
 else
+    updateStatus(statusLabel, "No Script Found", Color3.fromRGB(255, 165, 0)) -- Orange for no script
     print("🚫 ไม่มีสคริปต์สำหรับเกมนี้ (ID: " .. currentGame .. ")")
 end
