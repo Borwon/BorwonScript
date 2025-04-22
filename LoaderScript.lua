@@ -64,7 +64,7 @@ local scripts = {
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
     },
     {
-        ids = {18668065416,72829404259339}, -- ตัวอย่าง Game IDs สำหรับ AnimeRangerX
+        ids = {72829404259339}, -- ตัวอย่าง Game IDs สำหรับ AnimeRangerX
         name = "AnimeRangerX",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
     },
