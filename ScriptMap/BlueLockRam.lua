@@ -3,7 +3,10 @@ local config = {
     low_mode = true,
     fps_cap = 10,
     disable_shadows = true,
-    optimize_lighting = true
+    optimize_lighting = true,
+    save_cooldown = 5, -- Minimum seconds between saves
+    max_retries = 3,   -- Maximum retries for file operations
+    retry_delay = 2    -- Seconds between retries
 }
 
 -- Ensure game is fully loaded before executing
@@ -87,66 +90,203 @@ local function FormatFlow(flow)
     return flowMap[flow] and flow or "none"
 end
 
--- Data Management
-local function LoadPlayerData()
-    if not canWriteFile then return {} end
-    local fileName = "Idcheck/PlayerData/player_data.txt"
-    if not isfile(fileName) then return {} end
+-- File paths
+local folderName = "Idcheck/PlayerData"
+local fileName = folderName .. "/player_data.txt"
+local backupFileName = folderName .. "/player_data_backup.txt"
 
-    local data, lines = {}, readfile(fileName):split("\n")
-    for _, line in ipairs(lines) do
-        local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
-        if username then
-            data[username] = {
-                style = style ~= "" and style or "none",
-                flow = flow ~= "" and flow or "none",
-                level = tonumber(level) or 1
-            }
+-- File operation with retry mechanism
+local function RetryOperation(operation, maxRetries, retryDelay)
+    local retries = 0
+    while retries < (maxRetries or config.max_retries) do
+        local success, result = pcall(operation)
+        if success then
+            return true, result
+        else
+            retries = retries + 1
+            log("warning", "Operation failed, retrying (" .. retries .. "/" .. (maxRetries or config.max_retries) .. "): " .. tostring(result))
+            task.wait(retryDelay or config.retry_delay)
         end
     end
+    return false, "Max retries exceeded"
+end
+
+-- Ensure folder exists
+if canWriteFile then
+    RetryOperation(function()
+        if not isfolder(folderName) then
+            makefolder(folderName)
+            log("success", "Folder created: " .. folderName)
+        end
+    end)
+end
+
+-- Data Management with improved file handling
+local cachedPlayerData = {}
+local lastLoadTime = 0
+local isDataLoaded = false
+local fileLock = false
+
+local function LoadPlayerData(forceReload)
+    if not canWriteFile then return {} end
+    
+    -- Use cached data if available and not forced to reload
+    if isDataLoaded and not forceReload and os.time() - lastLoadTime < 60 then
+        return cachedPlayerData
+    end
+    
+    -- Wait for file lock to be released
+    local waitStart = os.time()
+    while fileLock do
+        task.wait(0.1)
+        if os.time() - waitStart > 5 then
+            log("warning", "File lock timeout, forcing unlock")
+            fileLock = false
+            break
+        end
+    end
+    
+    fileLock = true
+    
+    local data = {}
+    local success, result = RetryOperation(function()
+        if not isfile(fileName) then
+            -- Try to use backup if main file doesn't exist
+            if isfile(backupFileName) then
+                log("warning", "Main file not found, using backup")
+                return readfile(backupFileName):split("\n")
+            end
+            return {}
+        end
+        return readfile(fileName):split("\n")
+    end)
+    
+    if success and type(result) == "table" then
+        for _, line in ipairs(result) do
+            if type(line) == "string" and line:match("[^:]+:[^:]*:[^:]*:[^:]*") then
+                local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
+                if username and username ~= "" then
+                    data[username] = {
+                        style = style ~= "" and style or "none",
+                        flow = flow ~= "" and flow or "none",
+                        level = tonumber(level) or 1
+                    }
+                end
+            end
+        end
+    else
+        log("error", "Failed to load player data")
+    end
+    
+    -- Update cache
+    cachedPlayerData = data
+    lastLoadTime = os.time()
+    isDataLoaded = true
+    fileLock = false
+    
+    log("info", "Loaded data for " .. table.getn(table.keys(data)) .. " players")
     return data
 end
 
+-- Create backup of player data
+local function BackupPlayerData()
+    if not canWriteFile then return end
+    
+    RetryOperation(function()
+        if isfile(fileName) then
+            writefile(backupFileName, readfile(fileName))
+            log("success", "Backup created successfully")
+        end
+    end)
+end
+
+-- Save player data with improved reliability
 local function SavePlayerData(username, style, flow, level)
     if not canWriteFile then
         log("warning", "File writing not supported, skipping save.")
-        return
+        return false
     end
-
-    local folderName = "Idcheck/PlayerData"
-    local fileName = folderName .. "/player_data.txt"
-
-    -- Ensure folder exists
-    if not isfolder(folderName) then
-        local success, err = pcall(function()
-            makefolder(folderName)
-        end)
-        if not success then
-            log("error", "Failed to create folder: " .. tostring(err))
-            return
-        else
-            log("success", "Folder created: " .. folderName)
+    
+    if not username or username == "" then
+        log("error", "Invalid username, skipping save.")
+        return false
+    end
+    
+    -- Wait for file lock to be released
+    local waitStart = os.time()
+    while fileLock do
+        task.wait(0.1)
+        if os.time() - waitStart > 5 then
+            log("warning", "File lock timeout during save, forcing unlock")
+            fileLock = false
+            break
         end
     end
-
+    
+    fileLock = true
+    
+    -- Create backup before modifying
+    BackupPlayerData()
+    
     -- Load existing data and merge with new data
-    local playerData = LoadPlayerData()
-    playerData[username] = { style = style, flow = flow, level = level }
-
+    local playerData = LoadPlayerData(true)
+    playerData[username] = { 
+        style = style or "none", 
+        flow = flow or "none", 
+        level = tonumber(level) or 1 
+    }
+    
+    -- Count entries for verification
+    local entryCount = 0
+    for _ in pairs(playerData) do
+        entryCount = entryCount + 1
+    end
+    
     -- Write merged data back to file
     local lines = {}
     for uname, data in pairs(playerData) do
-        table.insert(lines, string.format("%s:%s:%s:%d", uname, data.style, data.flow, data.level))
+        if uname and uname ~= "" then
+            table.insert(lines, string.format("%s:%s:%s:%d", 
+                uname, 
+                data.style or "none", 
+                data.flow or "none", 
+                tonumber(data.level) or 1
+            ))
+        end
     end
-
-    local success, err = pcall(function()
+    
+    local success, err = RetryOperation(function()
         writefile(fileName, table.concat(lines, "\n"))
     end)
-    if not success then
-        log("error", "Failed to save file: " .. tostring(err))
+    
+    -- Verify save was successful by checking entry count
+    local verifySuccess = false
+    if success then
+        local verifyData = LoadPlayerData(true)
+        local verifyCount = 0
+        for _ in pairs(verifyData) do
+            verifyCount = verifyCount + 1
+        end
+        
+        if verifyCount >= entryCount then
+            verifySuccess = true
+            log("success", "Data saved and verified: " .. verifyCount .. " entries")
+        else
+            log("error", "Data verification failed: Expected " .. entryCount .. " entries, got " .. verifyCount)
+            -- Restore from backup if verification fails
+            RetryOperation(function()
+                if isfile(backupFileName) then
+                    writefile(fileName, readfile(backupFileName))
+                    log("warning", "Restored from backup due to verification failure")
+                end
+            end)
+        end
     else
-        log("success", "Data saved successfully: " .. fileName)
+        log("error", "Failed to save file: " .. tostring(err))
     end
+    
+    fileLock = false
+    return verifySuccess
 end
 
 -- Account Management
@@ -197,11 +337,52 @@ local function WaitForDataToLoad()
     return true
 end
 
-local debounce = false
+-- Improved debounce system with queue
+local saveQueue = {}
+local isSaving = false
+local lastSaveTime = 0
+
+local function ProcessSaveQueue()
+    if isSaving or #saveQueue == 0 then return end
+    
+    isSaving = true
+    
+    -- Get the latest save request (most recent data)
+    local saveData = saveQueue[#saveQueue]
+    saveQueue = {} -- Clear queue
+    
+    -- Execute the save
+    local success = SavePlayerData(
+        saveData.username,
+        saveData.style,
+        saveData.flow,
+        saveData.level
+    )
+    
+    if success then
+        lastSaveTime = os.time()
+    else
+        -- If save failed, try to requeue with a delay
+        task.delay(config.retry_delay, function()
+            table.insert(saveQueue, saveData)
+            ProcessSaveQueue()
+        end)
+    end
+    
+    isSaving = false
+    
+    -- Process next item if any were added during this save
+    if #saveQueue > 0 then
+        task.delay(0.5, ProcessSaveQueue)
+    end
+end
+
 local initialRun = true
 local function SaveAndSendData()
-    if debounce then return end
-    debounce = true
+    -- Cooldown check
+    if os.time() - lastSaveTime < config.save_cooldown and not initialRun then
+        log("info", "Save cooldown active, queueing save")
+    end
 
     if initialRun then
         log("info", "Initial run after join/rejoin, waiting for data stabilization...")
@@ -211,7 +392,7 @@ local function SaveAndSendData()
 
     local player = game:GetService("Players").LocalPlayer
     if not WaitForDataToLoad() then
-        debounce = false
+        log("warning", "Data not loaded, skipping save")
         return
     end
 
@@ -225,65 +406,80 @@ local function SaveAndSendData()
 
     if money < 0 or level <= 0 then
         log("warning", "Invalid data detected (Money: " .. money .. ", Level: " .. level .. "), skipping save.")
-        debounce = false
         return
     end
 
-    -- Save data
-    local saveSuccess, saveErr = pcall(function()
-        SavePlayerData(player.Name, style, flow, level)
-    end)
-    if not saveSuccess then
-        log("error", "Error saving data: " .. tostring(saveErr))
-    else
-        log("success", "Data saved successfully.")
-    end
+    -- Queue the save operation
+    table.insert(saveQueue, {
+        username = player.Name,
+        style = style,
+        flow = flow,
+        level = level
+    })
+    
+    -- Process the queue
+    task.spawn(ProcessSaveQueue)
 
-    -- Send data
+    -- Send data to RAM
     local sendSuccess, sendErr = pcall(function()
         local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
         local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
         MyAccount:SetAlias(alias)
         MyAccount:SetDescription(description)
     end)
+    
     if not sendSuccess then
         log("error", "Error sending data: " .. tostring(sendErr))
     else
-        log("success", "Data sent successfully.")
+        log("success", "Data sent to RAM successfully.")
     end
-
-    debounce = false
 end
 
--- Use PlayerRemoving instead of OnRemove
+-- Force save on player leaving
 game.Players.PlayerRemoving:Connect(function(player)
     if player == game.Players.LocalPlayer then
         log("info", "Player is leaving, saving final data...")
+        -- Force immediate save
+        isSaving = false
+        lastSaveTime = 0
         SaveAndSendData()
+        task.wait(1) -- Give time for save to complete
     end
 end)
 
--- Initialize RAMAccount with event listeners
+-- Initialize with event listeners
 task.spawn(function()
     local player = game:GetService("Players").LocalPlayer
     local stats = player:WaitForChild("ProfileStats", 10)
     local pStats = player:WaitForChild("PlayerStats", 10)
 
     if stats and pStats then
+        -- Initial save
         SaveAndSendData()
 
-        task.wait(10)
-        stats.Money.Changed:Connect(function()
-            SaveAndSendData()
-        end)
-        stats.Level.Changed:Connect(function()
-            SaveAndSendData()
-        end)
-        pStats.Style.Changed:Connect(function()
-            SaveAndSendData()
-        end)
-        pStats.Flow.Changed:Connect(function()
-            SaveAndSendData()
+        -- Set up change listeners with throttling
+        local function setupChangeListener(instance, property)
+            local lastChange = 0
+            instance[property].Changed:Connect(function()
+                if os.time() - lastChange > 1 then -- Throttle to prevent spam
+                    lastChange = os.time()
+                    SaveAndSendData()
+                end
+            end)
+        end
+
+        task.wait(10) -- Initial delay
+        setupChangeListener(stats, "Money")
+        setupChangeListener(stats, "Level")
+        setupChangeListener(pStats, "Style")
+        setupChangeListener(pStats, "Flow")
+        
+        -- Periodic save as a fallback
+        task.spawn(function()
+            while true do
+                task.wait(60) -- Save every minute as a backup
+                SaveAndSendData()
+            end
         end)
     else
         log("error", "Failed to set up event listeners due to missing stats.")
@@ -332,6 +528,16 @@ task.spawn(function()
         if not success then
             log("error", "Error during periodic check: " .. tostring(err))
         end
+    end
+end)
+
+-- Perform initial data load to verify file system
+task.spawn(function()
+    if canWriteFile then
+        local initialData = LoadPlayerData()
+        local count = 0
+        for _ in pairs(initialData) do count = count + 1 end
+        log("info", "Initial data loaded with " .. count .. " player records")
     end
 end)
 
