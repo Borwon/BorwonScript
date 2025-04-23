@@ -360,27 +360,54 @@ local function transitionToCompactMode(status, color)
         })
         mainTween:Play()
         
-        -- Fade out other elements with slight delay between each
-        for i, element in ipairs({
-            TopBar, TopBarCover, TitleLabel, LogoImage, 
-            StatusLabel, CenterLogo, ProgressBarBg, ProgressBarFill
-        }) do
+        -- Fade out elements based on their type
+        local tweens = {
+            -- Frames (only have BackgroundTransparency)
+            game:GetService("TweenService"):Create(TopBar, tweenInfo, {
+                BackgroundTransparency = 1
+            }),
+            game:GetService("TweenService"):Create(TopBarCover, tweenInfo, {
+                BackgroundTransparency = 1
+            }),
+            game:GetService("TweenService"):Create(ProgressBarBg, tweenInfo, {
+                BackgroundTransparency = 1
+            }),
+            game:GetService("TweenService"):Create(ProgressBarFill, tweenInfo, {
+                BackgroundTransparency = 1
+            }),
+            
+            -- TextLabels (have TextTransparency and BackgroundTransparency)
+            game:GetService("TweenService"):Create(TitleLabel, tweenInfo, {
+                TextTransparency = 1,
+                BackgroundTransparency = 1
+            }),
+            game:GetService("TweenService"):Create(StatusLabel, tweenInfo, {
+                TextTransparency = 1,
+                BackgroundTransparency = 1
+            }),
+            
+            -- ImageLabels (have ImageTransparency and BackgroundTransparency)
+            game:GetService("TweenService"):Create(LogoImage, tweenInfo, {
+                ImageTransparency = 1,
+                BackgroundTransparency = 1
+            }),
+            game:GetService("TweenService"):Create(CenterLogo, tweenInfo, {
+                ImageTransparency = 1,
+                BackgroundTransparency = 1
+            }),
+            game:GetService("TweenService"):Create(LogoGlow, tweenInfo, {
+                ImageTransparency = 1,
+                BackgroundTransparency = 1
+            })
+        }
+        
+        -- Play all tweens with slight delay between each
+        for i, tween in ipairs(tweens) do
             task.spawn(function()
                 task.wait(i * 0.03) -- Staggered delay for cascade effect
-                local elementTween = game:GetService("TweenService"):Create(element, tweenInfo, {
-                    BackgroundTransparency = 1,
-                    TextTransparency = 1,
-                    ImageTransparency = 1
-                })
-                elementTween:Play()
+                tween:Play()
             end)
         end
-        
-        -- Special handling for glow elements
-        local glowTween = game:GetService("TweenService"):Create(LogoGlow, tweenInfo, {
-            ImageTransparency = 1
-        })
-        glowTween:Play()
         
         -- Wait for main tween to complete
         mainTween.Completed:Wait()
@@ -403,40 +430,34 @@ local function transitionToCompactMode(status, color)
     )
     
     pcall(function()
-        -- Fade in compact elements
-        local compactTween = game:GetService("TweenService"):Create(CompactFrame, tweenInfo, {
+        -- Fade in compact elements with proper property types
+        game:GetService("TweenService"):Create(CompactFrame, tweenInfo, {
             BackgroundTransparency = 0
-        })
-        compactTween:Play()
+        }):Play()
         
-        -- Fade in other compact elements with slight delay
         task.spawn(function()
             task.wait(0.1)
-            local labelTween = game:GetService("TweenService"):Create(CompactStatusLabel, tweenInfo, {
+            game:GetService("TweenService"):Create(CompactStatusLabel, tweenInfo, {
                 TextTransparency = 0
-            })
-            labelTween:Play()
+            }):Play()
         end)
         
         task.spawn(function()
             task.wait(0.15)
-            local logoTween = game:GetService("TweenService"):Create(CompactLogo, tweenInfo, {
+            game:GetService("TweenService"):Create(CompactLogo, tweenInfo, {
                 ImageTransparency = 0
-            })
-            logoTween:Play()
+            }):Play()
         end)
         
         task.spawn(function()
             task.wait(0.2)
-            local shadowTween = game:GetService("TweenService"):Create(CompactShadow, tweenInfo, {
+            game:GetService("TweenService"):Create(CompactShadow, tweenInfo, {
                 ImageTransparency = 0.4
-            })
-            shadowTween:Play()
+            }):Play()
             
-            local glowTween = game:GetService("TweenService"):Create(CompactLogoGlow, tweenInfo, {
+            game:GetService("TweenService"):Create(CompactLogoGlow, tweenInfo, {
                 ImageTransparency = 0.8
-            })
-            glowTween:Play()
+            }):Play()
         end)
     end)
 end
@@ -751,35 +772,61 @@ CompactFrame.InputBegan:Connect(function(input)
                     Enum.EasingDirection.Out
                 )
                 
-                -- Fade in main elements
-                local mainTween = game:GetService("TweenService"):Create(MainFrame, tweenInfo, {
+                -- Fade in main elements with proper property types
+                game:GetService("TweenService"):Create(MainFrame, tweenInfo, {
                     BackgroundTransparency = 0
-                })
-                mainTween:Play()
+                }):Play()
                 
-                -- Fade in other elements with cascade effect
-                for i, element in ipairs({
-                    Shadow, TopBar, TopBarCover, TitleLabel, LogoImage, 
-                    StatusLabel, CenterLogo, ProgressBarBg, ProgressBarFill
-                }) do
+                -- Create type-specific tweens
+                local tweens = {
+                    -- Frames
+                    game:GetService("TweenService"):Create(TopBar, tweenInfo, {
+                        BackgroundTransparency = 0
+                    }),
+                    game:GetService("TweenService"):Create(TopBarCover, tweenInfo, {
+                        BackgroundTransparency = 0
+                    }),
+                    game:GetService("TweenService"):Create(ProgressBarBg, tweenInfo, {
+                        BackgroundTransparency = 0
+                    }),
+                    game:GetService("TweenService"):Create(ProgressBarFill, tweenInfo, {
+                        BackgroundTransparency = 0
+                    }),
+                    
+                    -- TextLabels
+                    game:GetService("TweenService"):Create(TitleLabel, tweenInfo, {
+                        TextTransparency = 0
+                    }),
+                    game:GetService("TweenService"):Create(StatusLabel, tweenInfo, {
+                        TextTransparency = 0
+                    }),
+                    
+                    -- ImageLabels
+                    game:GetService("TweenService"):Create(LogoImage, tweenInfo, {
+                        ImageTransparency = 0
+                    }),
+                    game:GetService("TweenService"):Create(CenterLogo, tweenInfo, {
+                        ImageTransparency = 0
+                    }),
+                    game:GetService("TweenService"):Create(Shadow, tweenInfo, {
+                        ImageTransparency = 0.4
+                    })
+                }
+                
+                -- Play all tweens with cascade effect
+                for i, tween in ipairs(tweens) do
                     task.spawn(function()
                         task.wait(i * 0.05) -- Staggered delay
-                        local elementTween = game:GetService("TweenService"):Create(element, tweenInfo, {
-                            BackgroundTransparency = 0,
-                            TextTransparency = 0,
-                            ImageTransparency = 0
-                        })
-                        elementTween:Play()
+                        tween:Play()
                     end)
                 end
                 
                 -- Special handling for glow
                 task.spawn(function()
                     task.wait(0.3)
-                    local glowTween = game:GetService("TweenService"):Create(LogoGlow, tweenInfo, {
+                    game:GetService("TweenService"):Create(LogoGlow, tweenInfo, {
                         ImageTransparency = 0.7
-                    })
-                    glowTween:Play()
+                    }):Play()
                 end)
             end
         )
