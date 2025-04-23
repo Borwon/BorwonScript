@@ -4,9 +4,9 @@ local config = {
     fps_cap = 10,
     disable_shadows = true,
     optimize_lighting = true,
-    save_cooldown = 5, -- Minimum seconds between saves
-    max_retries = 3,   -- Maximum retries for file operations
-    retry_delay = 2    -- Seconds between retries
+    save_cooldown = 5,
+    max_retries = 3,
+    retry_delay = 2
 }
 
 -- Ensure game is fully loaded before executing
@@ -21,12 +21,6 @@ end
 if config.optimize_lighting then
     game:GetService("Lighting").Brightness = 1
     game:GetService("Lighting").TimeOfDay = "12:00:00"
-end
-
--- Check file writing capability
-local canWriteFile = pcall(function() writefile("test.txt", "test") end)
-if not canWriteFile then
-    print("[WARNING] This Executor does not support file writing. File saving will be skipped.")
 end
 
 -- Load RAMAccount Library with fallback
@@ -59,17 +53,39 @@ local function FormatCoins(value)
     end
 end
 
--- Logging System
+-- Enhanced Logging System using Wave's console functions
 local function log(type, message)
     local timeStr = os.date("%H:%M:%S")
+    local logMessage = "["..timeStr.."] "
+    
     if type == "info" then
-        print("["..timeStr.."] ℹ️ " .. message)
+        logMessage = logMessage .. "ℹ️ " .. message
+        if console and console.info then
+            console.info(logMessage)
+        else
+            print(logMessage)
+        end
     elseif type == "success" then
-        print("["..timeStr.."] ✅ " .. message)
+        logMessage = logMessage .. "✅ " .. message
+        if console and console.success then
+            console.success(logMessage)
+        else
+            print(logMessage)
+        end
     elseif type == "warning" then
-        warn("["..timeStr.."] ⚠️ " .. message)
+        logMessage = logMessage .. "⚠️ " .. message
+        if console and console.warn then
+            console.warn(logMessage)
+        else
+            warn(logMessage)
+        end
     elseif type == "error" then
-        warn("["..timeStr.."] ❌ " .. message)
+        logMessage = logMessage .. "❌ " .. message
+        if console and console.error then
+            console.error(logMessage)
+        else
+            warn(logMessage)
+        end
     end
 end
 
@@ -94,9 +110,17 @@ end
 local folderName = "Idcheck/PlayerData"
 local fileName = folderName .. "/player_data.txt"
 local backupFileName = folderName .. "/player_data_backup.txt"
+local tempFileName = folderName .. "/player_data_temp.txt"
 
--- Ensure folder exists
-if canWriteFile then
+-- Ensure folder exists using Wave's file system functions
+if fs and fs.mkdir then
+    pcall(function()
+        if not fs.isdir(folderName) then
+            fs.mkdir(folderName)
+            log("success", "Folder created using Wave's fs.mkdir: " .. folderName)
+        end
+    end)
+else
     pcall(function()
         if not isfolder(folderName) then
             makefolder(folderName)
@@ -105,22 +129,44 @@ if canWriteFile then
     end)
 end
 
--- Simple file operations without complex locking
+-- Check file writing capability with Wave's file system
+local canWriteFile = false
+if fs and fs.write then
+    canWriteFile = pcall(function() fs.write("test.txt", "test") end)
+    if canWriteFile then
+        log("success", "Using Wave's file system functions")
+    end
+else
+    canWriteFile = pcall(function() writefile("test.txt", "test") end)
+end
+
+if not canWriteFile then
+    log("warning", "This Executor does not support file writing. File saving will be skipped.")
+end
+
+-- Enhanced file operations using Wave's file system
 local function LoadPlayerData()
     if not canWriteFile then return {} end
     
     local data = {}
+    local fileContent = ""
     
-    -- Try to read the file
-    local success, fileContent = pcall(function()
-        if isfile(fileName) then
-            return readfile(fileName)
-        else
-            return ""
-        end
-    end)
+    -- Try to read the file using Wave's fs if available
+    if fs and fs.read then
+        pcall(function()
+            if fs.isfile(fileName) then
+                fileContent = fs.read(fileName)
+            end
+        end)
+    else
+        pcall(function()
+            if isfile(fileName) then
+                fileContent = readfile(fileName)
+            end
+        end)
+    end
     
-    if success and fileContent and fileContent ~= "" then
+    if fileContent and fileContent ~= "" then
         local lines = string.split(fileContent, "\n")
         for _, line in ipairs(lines) do
             if line and line ~= "" then
@@ -145,7 +191,28 @@ local function LoadPlayerData()
     return data
 end
 
--- Save player data with simple approach
+-- Create backup with Wave's file system
+local function BackupPlayerData()
+    if not canWriteFile then return end
+    
+    if fs and fs.copy then
+        pcall(function()
+            if fs.isfile(fileName) then
+                fs.copy(fileName, backupFileName)
+                log("success", "Backup created using Wave's fs.copy")
+            end
+        end)
+    else
+        pcall(function()
+            if isfile(fileName) then
+                writefile(backupFileName, readfile(fileName))
+                log("success", "Backup created")
+            end
+        end)
+    end
+end
+
+-- Save player data with improved reliability using Wave's file system
 local function SavePlayerData(username, style, flow, level)
     if not canWriteFile then
         log("warning", "File writing not supported, skipping save.")
@@ -157,12 +224,8 @@ local function SavePlayerData(username, style, flow, level)
         return false
     end
     
-    -- Create backup first (if file exists)
-    pcall(function()
-        if isfile(fileName) then
-            writefile(backupFileName, readfile(fileName))
-        end
-    end)
+    -- Create backup first
+    BackupPlayerData()
     
     -- Load existing data
     local playerData = LoadPlayerData()
@@ -193,13 +256,50 @@ local function SavePlayerData(username, style, flow, level)
         end
     end
     
-    -- Save the file
-    local success = pcall(function()
-        writefile(fileName, table.concat(lines, "\n"))
-    end)
+    local fileContent = table.concat(lines, "\n")
+    
+    -- Save to temporary file first, then rename to avoid corruption
+    local success = false
+    
+    if fs and fs.write and fs.rename then
+        success = pcall(function()
+            fs.write(tempFileName, fileContent)
+            if fs.isfile(tempFileName) then
+                if fs.isfile(fileName) then
+                    fs.remove(fileName)
+                end
+                fs.rename(tempFileName, fileName)
+            end
+        end)
+    else
+        success = pcall(function()
+            writefile(tempFileName, fileContent)
+            if isfile(tempFileName) then
+                if isfile(fileName) then
+                    delfile(fileName)
+                end
+                writefile(fileName, fileContent)
+                delfile(tempFileName)
+            end
+        end)
+    end
     
     if success then
         log("success", "Data saved successfully: " .. entryCount .. " entries")
+        
+        -- Verify the save by checking file exists
+        local fileExists = false
+        if fs and fs.isfile then
+            fileExists = fs.isfile(fileName)
+        else
+            fileExists = isfile(fileName)
+        end
+        
+        if not fileExists then
+            log("error", "File verification failed - file doesn't exist after save")
+            return false
+        end
+        
         return true
     else
         log("error", "Failed to save data")
@@ -258,6 +358,7 @@ end
 -- Simple debounce system
 local isSaving = false
 local lastSaveTime = 0
+local saveCount = 0
 
 local initialRun = true
 local function SaveAndSendData()
@@ -300,6 +401,14 @@ local function SaveAndSendData()
     local saveSuccess = SavePlayerData(player.Name, style, flow, level)
     if saveSuccess then
         lastSaveTime = os.time()
+        saveCount = saveCount + 1
+        
+        -- Show notification using Wave's notification system if available
+        if notification and notification.new then
+            pcall(function()
+                notification.new("Data Saved", "Player data saved successfully (" .. saveCount .. ")")
+            end)
+        end
     end
 
     -- Send data to RAM
@@ -414,5 +523,35 @@ task.spawn(function()
         end
     end
 end)
+
+-- Display stats using Wave's console if available
+if console and console.clear then
+    task.spawn(function()
+        while true do
+            task.wait(30)
+            pcall(function()
+                local player = game:GetService("Players").LocalPlayer
+                local stats = player:FindFirstChild("ProfileStats")
+                local pStats = player:FindFirstChild("PlayerStats")
+                
+                if stats and pStats then
+                    local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
+                    local level = stats:FindFirstChild("Level") and stats.Level.Value or 0
+                    local style = pStats:FindFirstChild("Style") and pStats.Style.Value or "none"
+                    local flow = pStats:FindFirstChild("Flow") and pStats.Flow.Value or "none"
+                    
+                    console.clear()
+                    console.info("=== Player Stats ===")
+                    console.info("Money: " .. FormatCoins(money))
+                    console.info("Level: " .. level)
+                    console.info("Style: " .. style)
+                    console.info("Flow: " .. flow)
+                    console.info("Saves: " .. saveCount)
+                    console.info("==================")
+                end
+            end)
+        end
+    end)
+end
 
 log("success", "Script fully initialized")
