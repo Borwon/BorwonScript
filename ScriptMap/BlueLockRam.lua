@@ -88,6 +88,8 @@ end
 local folderName = "Idcheck/PlayerData"
 local fileName = folderName .. "/player_data.txt"
 local backupFileName = folderName .. "/player_data_backup.txt"
+local tempFileName = folderName .. "/player_data_temp.txt"
+local archiveFileName = folderName .. "/player_data_archive.txt"
 
 -- Check file writing capability - AWP specific
 local canWriteFile = pcall(function() writefile("test.txt", "test") end)
@@ -105,25 +107,38 @@ if canWriteFile then
     end)
 end
 
--- Simple file operations for AWP
-local function LoadPlayerData()
+-- Improved file operations for AWP
+local function LoadPlayerData(filePath)
     if not canWriteFile then return {} end
+    
+    filePath = filePath or fileName
     
     local data = {}
     local fileContent = ""
     
     -- Try to read the file
-    pcall(function()
-        if isfile(fileName) then
-            fileContent = readfile(fileName)
+    local success, result = pcall(function()
+        if isfile(filePath) then
+            return readfile(filePath)
         end
+        return ""
     end)
     
+    if success and result and result ~= "" then
+        fileContent = result
+    else
+        log("warning", "Failed to read file: " .. filePath)
+        return {}
+    end
+    
+    -- Process file content
     if fileContent and fileContent ~= "" then
         -- Split the content by newlines
         local lines = {}
         for line in string.gmatch(fileContent, "[^\r\n]+") do
-            table.insert(lines, line)
+            if line and line ~= "" then
+                table.insert(lines, line)
+            end
         end
         
         for _, line in ipairs(lines) do
@@ -152,27 +167,42 @@ local function LoadPlayerData()
         
         local count = 0
         for _ in pairs(data) do count = count + 1 end
-        log("info", "Loaded data for " .. count .. " players")
+        log("info", "Loaded " .. count .. " players from " .. filePath)
     else
-        log("warning", "Failed to load player data or file is empty")
+        log("warning", "File is empty: " .. filePath)
     end
     
     return data
 end
 
--- Create backup - AWP compatible
+-- Create comprehensive backup system
 local function BackupPlayerData()
     if not canWriteFile then return end
     
+    -- Create standard backup
     pcall(function()
         if isfile(fileName) then
             writefile(backupFileName, readfile(fileName))
-            log("success", "Backup created")
+            log("success", "Standard backup created")
+        end
+    end)
+    
+    -- Create timestamped archive backup once per hour
+    pcall(function()
+        if isfile(fileName) then
+            local currentHour = os.date("%Y-%m-%d_%H")
+            local archiveFile = folderName .. "/archive_" .. currentHour .. ".txt"
+            
+            -- Only create archive if it doesn't exist for this hour
+            if not isfile(archiveFile) then
+                writefile(archiveFile, readfile(fileName))
+                log("success", "Archive backup created: " .. archiveFile)
+            end
         end
     end)
 end
 
--- Save player data - AWP compatible
+-- Improved save function with verification
 local function SavePlayerData(username, style, flow, level)
     if not canWriteFile then
         log("warning", "File writing not supported, skipping save.")
@@ -188,24 +218,24 @@ local function SavePlayerData(username, style, flow, level)
     BackupPlayerData()
     
     -- Load existing data
-    local playerData = LoadPlayerData()
+    local existingData = LoadPlayerData()
+    local initialCount = 0
+    for _ in pairs(existingData) do initialCount = initialCount + 1 end
     
     -- Add or update the player entry
-    playerData[username] = { 
+    existingData[username] = { 
         style = style or "none", 
         flow = flow or "none", 
         level = tonumber(level) or 1 
     }
     
-    -- Count entries for verification
-    local entryCount = 0
-    for _ in pairs(playerData) do
-        entryCount = entryCount + 1
-    end
+    -- Count entries after update
+    local updatedCount = 0
+    for _ in pairs(existingData) do updatedCount = updatedCount + 1 end
     
     -- Prepare data for saving
     local lines = {}
-    for uname, data in pairs(playerData) do
+    for uname, data in pairs(existingData) do
         if uname and uname ~= "" then
             table.insert(lines, string.format("%s:%s:%s:%d", 
                 uname, 
@@ -218,27 +248,57 @@ local function SavePlayerData(username, style, flow, level)
     
     local fileContent = table.concat(lines, "\n")
     
-    -- Direct save approach for AWP
-    local success = pcall(function()
+    -- Save to temporary file first
+    local tempSuccess = pcall(function()
+        writefile(tempFileName, fileContent)
+    end)
+    
+    if not tempSuccess then
+        log("error", "Failed to write temporary file")
+        return false
+    end
+    
+    -- Verify temporary file
+    local tempData = LoadPlayerData(tempFileName)
+    local tempCount = 0
+    for _ in pairs(tempData) do tempCount = tempCount + 1 end
+    
+    if tempCount < updatedCount then
+        log("error", "Temporary file verification failed: Expected " .. updatedCount .. " entries, got " .. tempCount)
+        return false
+    end
+    
+    -- Move temporary file to main file
+    local moveSuccess = pcall(function()
         writefile(fileName, fileContent)
     end)
     
-    if success then
-        log("success", "Data saved successfully: " .. entryCount .. " entries")
-        
-        -- Verify the save by checking file exists
-        local fileExists = pcall(function() return isfile(fileName) end)
-        
-        if not fileExists then
-            log("error", "File verification failed - file doesn't exist after save")
-            return false
-        end
-        
-        return true
-    else
-        log("error", "Failed to save data")
+    if not moveSuccess then
+        log("error", "Failed to move temporary file to main file")
         return false
     end
+    
+    -- Final verification
+    local finalData = LoadPlayerData()
+    local finalCount = 0
+    for _ in pairs(finalData) do finalCount = finalCount + 1 end
+    
+    if finalCount < updatedCount then
+        log("error", "Final verification failed: Expected " .. updatedCount .. " entries, got " .. finalCount)
+        
+        -- Try to restore from backup
+        pcall(function()
+            if isfile(backupFileName) then
+                writefile(fileName, readfile(backupFileName))
+                log("warning", "Restored from backup due to verification failure")
+            end
+        end)
+        
+        return false
+    end
+    
+    log("success", "Data saved and verified: " .. finalCount .. " entries (Added: " .. (updatedCount - initialCount) .. ")")
+    return true
 end
 
 -- Account Management
@@ -289,21 +349,57 @@ local function WaitForDataToLoad()
     return true
 end
 
--- Simple debounce system
+-- Improved debounce system
 local isSaving = false
 local lastSaveTime = 0
 local saveCount = 0
+local saveQueue = {}
 
+-- Process save queue
+local function ProcessSaveQueue()
+    if isSaving or #saveQueue == 0 then return end
+    
+    isSaving = true
+    
+    -- Get the latest save request
+    local saveData = saveQueue[#saveQueue]
+    saveQueue = {} -- Clear queue
+    
+    -- Execute the save
+    local saveSuccess = SavePlayerData(
+        saveData.username,
+        saveData.style,
+        saveData.flow,
+        saveData.level
+    )
+    
+    if saveSuccess then
+        lastSaveTime = os.time()
+        saveCount = saveCount + 1
+        log("success", "Save #" .. saveCount .. " completed")
+    else
+        -- If save failed, try to requeue
+        task.delay(2, function()
+            table.insert(saveQueue, saveData)
+            ProcessSaveQueue()
+        end)
+    end
+    
+    isSaving = false
+    
+    -- Process next item if any were added during this save
+    if #saveQueue > 0 then
+        task.delay(0.5, ProcessSaveQueue)
+    end
+end
+
+-- Improved save function
 local initialRun = true
 local function SaveAndSendData()
     -- Don't save too frequently
     if os.time() - lastSaveTime < config.save_cooldown and not initialRun then
         return
     end
-    
-    -- Don't run multiple saves at once
-    if isSaving then return end
-    isSaving = true
 
     if initialRun then
         log("info", "Initial run after join/rejoin, waiting for data stabilization...")
@@ -313,7 +409,6 @@ local function SaveAndSendData()
 
     local player = game:GetService("Players").LocalPlayer
     if not WaitForDataToLoad() then
-        isSaving = false
         return
     end
 
@@ -327,17 +422,19 @@ local function SaveAndSendData()
 
     if money < 0 or level <= 0 then
         log("warning", "Invalid data detected (Money: " .. money .. ", Level: " .. level .. "), skipping save.")
-        isSaving = false
         return
     end
 
-    -- Save data
-    local saveSuccess = SavePlayerData(player.Name, style, flow, level)
-    if saveSuccess then
-        lastSaveTime = os.time()
-        saveCount = saveCount + 1
-        log("success", "Save #" .. saveCount .. " completed")
-    end
+    -- Queue the save operation
+    table.insert(saveQueue, {
+        username = player.Name,
+        style = style,
+        flow = flow,
+        level = level
+    })
+    
+    -- Process the queue
+    task.spawn(ProcessSaveQueue)
 
     -- Send data to RAM
     local sendSuccess, sendErr = pcall(function()
@@ -352,9 +449,39 @@ local function SaveAndSendData()
     else
         log("success", "Data sent to RAM successfully.")
     end
-    
-    isSaving = false
 end
+
+-- Periodic data verification
+task.spawn(function()
+    while true do
+        task.wait(300) -- Check every 5 minutes
+        
+        if canWriteFile and isfile(fileName) then
+            local data = LoadPlayerData()
+            local count = 0
+            for _ in pairs(data) do count = count + 1 end
+            
+            log("info", "Periodic verification: " .. count .. " player records")
+            
+            -- If count is suspiciously low, try to recover
+            if count < 40 and isfile(backupFileName) then
+                local backupData = LoadPlayerData(backupFileName)
+                local backupCount = 0
+                for _ in pairs(backupData) do backupCount = backupCount + 1 end
+                
+                if backupCount > count then
+                    log("warning", "Data loss detected! Backup has " .. backupCount .. " records vs current " .. count)
+                    
+                    -- Restore from backup
+                    pcall(function()
+                        writefile(fileName, readfile(backupFileName))
+                        log("success", "Restored from backup due to data loss")
+                    end)
+                end
+            end
+        end
+    end
+end)
 
 -- Force save on player leaving
 game.Players.PlayerRemoving:Connect(function(player)
@@ -473,6 +600,15 @@ task.spawn(function()
                 print("Style: " .. style)
                 print("Flow: " .. flow)
                 print("Saves: " .. saveCount)
+                
+                -- Show data count
+                if canWriteFile and isfile(fileName) then
+                    local data = LoadPlayerData()
+                    local count = 0
+                    for _ in pairs(data) do count = count + 1 end
+                    print("Saved Players: " .. count)
+                end
+                
                 print("==================")
             end
         end)
