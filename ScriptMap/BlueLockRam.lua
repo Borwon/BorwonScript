@@ -53,39 +53,17 @@ local function FormatCoins(value)
     end
 end
 
--- Enhanced Logging System using Wave's console functions
+-- Logging System
 local function log(type, message)
     local timeStr = os.date("%H:%M:%S")
-    local logMessage = "["..timeStr.."] "
-    
     if type == "info" then
-        logMessage = logMessage .. "ℹ️ " .. message
-        if console and console.info then
-            console.info(logMessage)
-        else
-            print(logMessage)
-        end
+        print("["..timeStr.."] ℹ️ " .. message)
     elseif type == "success" then
-        logMessage = logMessage .. "✅ " .. message
-        if console and console.success then
-            console.success(logMessage)
-        else
-            print(logMessage)
-        end
+        print("["..timeStr.."] ✅ " .. message)
     elseif type == "warning" then
-        logMessage = logMessage .. "⚠️ " .. message
-        if console and console.warn then
-            console.warn(logMessage)
-        else
-            warn(logMessage)
-        end
+        warn("["..timeStr.."] ⚠️ " .. message)
     elseif type == "error" then
-        logMessage = logMessage .. "❌ " .. message
-        if console and console.error then
-            console.error(logMessage)
-        else
-            warn(logMessage)
-        end
+        warn("["..timeStr.."] ❌ " .. message)
     end
 end
 
@@ -110,17 +88,15 @@ end
 local folderName = "Idcheck/PlayerData"
 local fileName = folderName .. "/player_data.txt"
 local backupFileName = folderName .. "/player_data_backup.txt"
-local tempFileName = folderName .. "/player_data_temp.txt"
 
--- Ensure folder exists using Wave's file system functions
-if fs and fs.mkdir then
-    pcall(function()
-        if not fs.isdir(folderName) then
-            fs.mkdir(folderName)
-            log("success", "Folder created using Wave's fs.mkdir: " .. folderName)
-        end
-    end)
-else
+-- Check file writing capability - AWP specific
+local canWriteFile = pcall(function() writefile("test.txt", "test") end)
+if not canWriteFile then
+    print("[WARNING] This Executor does not support file writing. File saving will be skipped.")
+end
+
+-- Ensure folder exists - AWP compatible
+if canWriteFile then
     pcall(function()
         if not isfolder(folderName) then
             makefolder(folderName)
@@ -129,54 +105,47 @@ else
     end)
 end
 
--- Check file writing capability with Wave's file system
-local canWriteFile = false
-if fs and fs.write then
-    canWriteFile = pcall(function() fs.write("test.txt", "test") end)
-    if canWriteFile then
-        log("success", "Using Wave's file system functions")
-    end
-else
-    canWriteFile = pcall(function() writefile("test.txt", "test") end)
-end
-
-if not canWriteFile then
-    log("warning", "This Executor does not support file writing. File saving will be skipped.")
-end
-
--- Enhanced file operations using Wave's file system
+-- Simple file operations for AWP
 local function LoadPlayerData()
     if not canWriteFile then return {} end
     
     local data = {}
     local fileContent = ""
     
-    -- Try to read the file using Wave's fs if available
-    if fs and fs.read then
-        pcall(function()
-            if fs.isfile(fileName) then
-                fileContent = fs.read(fileName)
-            end
-        end)
-    else
-        pcall(function()
-            if isfile(fileName) then
-                fileContent = readfile(fileName)
-            end
-        end)
-    end
+    -- Try to read the file
+    pcall(function()
+        if isfile(fileName) then
+            fileContent = readfile(fileName)
+        end
+    end)
     
     if fileContent and fileContent ~= "" then
-        local lines = string.split(fileContent, "\n")
+        -- Split the content by newlines
+        local lines = {}
+        for line in string.gmatch(fileContent, "[^\r\n]+") do
+            table.insert(lines, line)
+        end
+        
         for _, line in ipairs(lines) do
             if line and line ~= "" then
-                local username, style, flow, level = line:match("([^:]+):([^:]*):([^:]*):([^:]*)")
-                if username and username ~= "" then
-                    data[username] = {
-                        style = style ~= "" and style or "none",
-                        flow = flow ~= "" and flow or "none",
-                        level = tonumber(level) or 1
-                    }
+                local parts = {}
+                for part in string.gmatch(line, "[^:]+") do
+                    table.insert(parts, part)
+                end
+                
+                if #parts >= 4 then
+                    local username = parts[1]
+                    local style = parts[2]
+                    local flow = parts[3]
+                    local level = tonumber(parts[4]) or 1
+                    
+                    if username and username ~= "" then
+                        data[username] = {
+                            style = style ~= "" and style or "none",
+                            flow = flow ~= "" and flow or "none",
+                            level = level
+                        }
+                    end
                 end
             end
         end
@@ -191,28 +160,19 @@ local function LoadPlayerData()
     return data
 end
 
--- Create backup with Wave's file system
+-- Create backup - AWP compatible
 local function BackupPlayerData()
     if not canWriteFile then return end
     
-    if fs and fs.copy then
-        pcall(function()
-            if fs.isfile(fileName) then
-                fs.copy(fileName, backupFileName)
-                log("success", "Backup created using Wave's fs.copy")
-            end
-        end)
-    else
-        pcall(function()
-            if isfile(fileName) then
-                writefile(backupFileName, readfile(fileName))
-                log("success", "Backup created")
-            end
-        end)
-    end
+    pcall(function()
+        if isfile(fileName) then
+            writefile(backupFileName, readfile(fileName))
+            log("success", "Backup created")
+        end
+    end)
 end
 
--- Save player data with improved reliability using Wave's file system
+-- Save player data - AWP compatible
 local function SavePlayerData(username, style, flow, level)
     if not canWriteFile then
         log("warning", "File writing not supported, skipping save.")
@@ -258,42 +218,16 @@ local function SavePlayerData(username, style, flow, level)
     
     local fileContent = table.concat(lines, "\n")
     
-    -- Save to temporary file first, then rename to avoid corruption
-    local success = false
-    
-    if fs and fs.write and fs.rename then
-        success = pcall(function()
-            fs.write(tempFileName, fileContent)
-            if fs.isfile(tempFileName) then
-                if fs.isfile(fileName) then
-                    fs.remove(fileName)
-                end
-                fs.rename(tempFileName, fileName)
-            end
-        end)
-    else
-        success = pcall(function()
-            writefile(tempFileName, fileContent)
-            if isfile(tempFileName) then
-                if isfile(fileName) then
-                    delfile(fileName)
-                end
-                writefile(fileName, fileContent)
-                delfile(tempFileName)
-            end
-        end)
-    end
+    -- Direct save approach for AWP
+    local success = pcall(function()
+        writefile(fileName, fileContent)
+    end)
     
     if success then
         log("success", "Data saved successfully: " .. entryCount .. " entries")
         
         -- Verify the save by checking file exists
-        local fileExists = false
-        if fs and fs.isfile then
-            fileExists = fs.isfile(fileName)
-        else
-            fileExists = isfile(fileName)
-        end
+        local fileExists = pcall(function() return isfile(fileName) end)
         
         if not fileExists then
             log("error", "File verification failed - file doesn't exist after save")
@@ -402,13 +336,7 @@ local function SaveAndSendData()
     if saveSuccess then
         lastSaveTime = os.time()
         saveCount = saveCount + 1
-        
-        -- Show notification using Wave's notification system if available
-        if notification and notification.new then
-            pcall(function()
-                notification.new("Data Saved", "Player data saved successfully (" .. saveCount .. ")")
-            end)
-        end
+        log("success", "Save #" .. saveCount .. " completed")
     end
 
     -- Send data to RAM
@@ -524,34 +452,41 @@ task.spawn(function()
     end
 end)
 
--- Display stats using Wave's console if available
-if console and console.clear then
-    task.spawn(function()
-        while true do
-            task.wait(30)
-            pcall(function()
-                local player = game:GetService("Players").LocalPlayer
-                local stats = player:FindFirstChild("ProfileStats")
-                local pStats = player:FindFirstChild("PlayerStats")
+-- Display stats periodically
+task.spawn(function()
+    while true do
+        task.wait(30)
+        pcall(function()
+            local player = game:GetService("Players").LocalPlayer
+            local stats = player:FindFirstChild("ProfileStats")
+            local pStats = player:FindFirstChild("PlayerStats")
+            
+            if stats and pStats then
+                local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
+                local level = stats:FindFirstChild("Level") and stats.Level.Value or 0
+                local style = pStats:FindFirstChild("Style") and pStats.Style.Value or "none"
+                local flow = pStats:FindFirstChild("Flow") and pStats.Flow.Value or "none"
                 
-                if stats and pStats then
-                    local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
-                    local level = stats:FindFirstChild("Level") and stats.Level.Value or 0
-                    local style = pStats:FindFirstChild("Style") and pStats.Style.Value or "none"
-                    local flow = pStats:FindFirstChild("Flow") and pStats.Flow.Value or "none"
-                    
-                    console.clear()
-                    console.info("=== Player Stats ===")
-                    console.info("Money: " .. FormatCoins(money))
-                    console.info("Level: " .. level)
-                    console.info("Style: " .. style)
-                    console.info("Flow: " .. flow)
-                    console.info("Saves: " .. saveCount)
-                    console.info("==================")
-                end
-            end)
-        end
-    end)
-end
+                print("=== Player Stats ===")
+                print("Money: " .. FormatCoins(money))
+                print("Level: " .. level)
+                print("Style: " .. style)
+                print("Flow: " .. flow)
+                print("Saves: " .. saveCount)
+                print("==================")
+            end
+        end)
+    end
+end)
+
+-- Perform initial data load to verify file system
+task.spawn(function()
+    if canWriteFile then
+        local initialData = LoadPlayerData()
+        local count = 0
+        for _ in pairs(initialData) do count = count + 1 end
+        log("info", "Initial data loaded with " .. count .. " player records")
+    end
+end)
 
 log("success", "Script fully initialized")
