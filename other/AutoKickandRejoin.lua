@@ -16,7 +16,7 @@ local config = {
     rejoin_delay = 3,
     
     -- แสดงข้อความ debug หรือไม่
-    debug_mode = true
+    debug_mode = false
 }
 
 -- ฟังก์ชันสำหรับแสดงข้อความ log
