@@ -1,5 +1,5 @@
 -- ===== BorwonCheck - Enhanced Loader Version =====
--- Improved script loader without UI
+-- Improved script loader with auto-rejoin support
 
 -- Function to wait for game to load with optimized checks
 local function waitForGameLoaded(timeout)
@@ -65,7 +65,9 @@ local config = {
         enabled = true, -- เปิดใช้งาน Universal Script หรือไม่
         name = "AutoKickandRejoin", -- ชื่อของ Universal Script
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AutoKickandRejoin.lua" -- ลิงก์ไปยังสคริปต์
-    }
+    },
+    autoReload = true, -- เปิดใช้งานการโหลดสคริปต์อัตโนมัติหลังจาก rejoin
+    debugMode = true -- เปิดใช้งานโหมด debug
 }
 
 -- Table of scripts for different games
@@ -87,9 +89,16 @@ local scripts = {
     },
 }
 
+-- Debugging function
+local function debugLog(message)
+    if config.debugMode then
+        print("[DEBUG] " .. message)
+    end
+end
+
 -- Debugging: Print the state of 'scripts' and 'config'
-print("Debug: scripts =", scripts)
-print("Debug: config =", config)
+debugLog("scripts = " .. (type(scripts) == "table" and "table" or tostring(scripts)))
+debugLog("config = " .. (type(config) == "table" and "table" or tostring(config)))
 
 -- Main function to run the loader
 local function runLoader()
@@ -117,7 +126,7 @@ local function runLoader()
             if matchedScript then break end
         end
     else
-        warn("'scripts' is not a valid table. Debug: scripts =", scripts) -- Debugging
+        warn("'scripts' is not a valid table. Debug: scripts = " .. tostring(scripts))
     end
 
     local mapName = "Unknown Map"
@@ -131,15 +140,103 @@ local function runLoader()
     end
 
     -- Always run the universal script
-    if config and config.universalScript and config.universalScript.enabled then -- Ensure 'config' and 'config.universalScript' are valid
+    if config and config.universalScript and config.universalScript.enabled then
         local universalName = config.universalScript.name
         local universalUrl = config.universalScript.url
-        print("Running universal script: " .. universalName .. " for map: " .. mapName) -- Debug message
+        print("Running universal script: " .. universalName .. " for map: " .. mapName)
         loadAndRunScript(universalName, universalUrl)
     else
-        warn("'config' or 'config.universalScript' is not properly defined. Debug: config =", config) -- Debugging
+        warn("'config' or 'config.universalScript' is not properly defined. Debug: config = " .. tostring(config))
     end
 end
 
--- Ensure 'runLoader()' is called after 'scripts' and 'config' are defined
-runLoader()
+-- ===== เพิ่มระบบตรวจจับการเข้าเกมใหม่ =====
+
+-- ตัวแปรเก็บสถานะว่าสคริปต์ได้ทำงานแล้วหรือยัง
+local hasRunInitially = false
+
+-- ฟังก์ชันสำหรับตรวจสอบเมื่อเข้าเกมใหม่
+local function setupRejoinDetection()
+    -- ตรวจจับเมื่อ LocalPlayer เข้าเกม
+    game:GetService("Players").PlayerAdded:Connect(function(player)
+        if player == game:GetService("Players").LocalPlayer then
+            debugLog("LocalPlayer เข้าเกมใหม่ - เตรียมรันสคริปต์อีกครั้ง")
+            -- รอให้เกมโหลดเสร็จก่อนรันสคริปต์
+            task.wait(5)
+            runLoader()
+        end
+    end)
+    
+    -- ตรวจจับเมื่อ Character เกิดใหม่ (อาจเกิดจากการ respawn หรือ rejoin)
+    if game:GetService("Players").LocalPlayer then
+        game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(character)
+            debugLog("Character เกิดใหม่ - ตรวจสอบว่าเป็นการ rejoin หรือไม่")
+            -- ตรวจสอบว่าเป็นการ rejoin จริงๆ หรือแค่ respawn ธรรมดา
+            task.wait(2)
+            if not hasRunInitially then
+                debugLog("รันสคริปต์ครั้งแรกหลังจาก Character เกิด")
+                runLoader()
+                hasRunInitially = true
+            else
+                -- ใช้ตัวแปรเพื่อป้องกันการรันซ้ำเมื่อเพิ่ง respawn ธรรมดา
+                local lastRun = tick()
+                task.wait(3) -- รอสักครู่เพื่อให้แน่ใจว่าเป็นการ rejoin จริงๆ
+                if tick() - lastRun >= 3 then
+                    debugLog("ตรวจพบการ rejoin - รันสคริปต์อีกครั้ง")
+                    runLoader()
+                end
+            end
+        end)
+    end
+    
+    -- ตรวจจับเมื่อเกมโหลดเสร็จ (สำหรับกรณีที่สคริปต์ถูกรันก่อนเกมโหลดเสร็จ)
+    if not game:IsLoaded() then
+        game.Loaded:Connect(function()
+            debugLog("เกมโหลดเสร็จแล้ว - รันสคริปต์")
+            task.wait(5)
+            runLoader()
+        end)
+    end
+    
+    -- ตรวจจับการเปลี่ยนแปลง PlaceId (เมื่อเข้าแมพใหม่)
+    local currentPlaceId = game.PlaceId
+    task.spawn(function()
+        while true do
+            task.wait(5)
+            if game.PlaceId ~= currentPlaceId then
+                debugLog("ตรวจพบการเปลี่ยนแมพ - รันสคริปต์อีกครั้ง")
+                currentPlaceId = game.PlaceId
+                runLoader()
+            end
+        end
+    end)
+    
+    -- ตรวจจับเมื่อ TeleportService ทำงาน
+    game:GetService("TeleportService").TeleportInitFailed:Connect(function()
+        debugLog("การเทเลพอร์ตล้มเหลว - ลองรันสคริปต์อีกครั้ง")
+        task.wait(5)
+        runLoader()
+    end)
+end
+
+-- ตั้งค่าการตรวจจับ rejoin
+setupRejoinDetection()
+
+-- รันสคริปต์ครั้งแรก
+if not hasRunInitially then
+    debugLog("รันสคริปต์ครั้งแรก")
+    runLoader()
+    hasRunInitially = true
+end
+
+-- เพิ่มการตรวจสอบเพื่อรันสคริปต์อีกครั้งหลังจากเวลาผ่านไป (เผื่อกรณีที่การตรวจจับอื่นๆ ล้มเหลว)
+task.spawn(function()
+    while config.autoReload do
+        task.wait(300) -- ตรวจสอบทุก 5 นาที
+        debugLog("ตรวจสอบตามเวลา - รันสคริปต์อีกครั้งเพื่อความแน่ใจ")
+        runLoader()
+    end
+end)
+
+-- แสดงข้อความเมื่อสคริปต์เริ่มทำงาน
+print("BorwonCheck Loader ทำงานแล้ว - พร้อมสำหรับการ rejoin")
