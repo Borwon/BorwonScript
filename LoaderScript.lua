@@ -14,7 +14,7 @@ local config = {
     -- ตั้งค่า Discord Webhook
     discordNotifications = {
         enabled = true,               -- เปิดใช้งานการแจ้งเตือนผ่าน Discord
-        webhookUrl = "YOUR_DISCORD_WEBHOOK_URL_HERE", -- URL ของ Discord Webhook
+        webhookUrl = "https://discord.com/api/webhooks/1365021057970471104/yRNEmRXSnV0saY57-tXmJAQ98ubvfzt-2rmyBedVV4bbkhBmQ4s3vRKW7pRCmmATbKM1", -- URL ของ Discord Webhook
         notifyOnErrors = true,        -- แจ้งเตือนเมื่อเกิด error
         notifyOnScriptLoad = true,    -- แจ้งเตือนเมื่อโหลดสคริปต์สำเร็จ
         includeGameInfo = true,       -- รวมข้อมูลเกมในการแจ้งเตือน
