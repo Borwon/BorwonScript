@@ -60,8 +60,9 @@ local function runLoader()
         if matchedScript then break end
     end
 
+    local mapName = "Unknown Map"
     if matchedScript then
-        local mapName = matchedScript.name
+        mapName = matchedScript.name
         local scriptUrl = matchedScript.url
         print("Found script: " .. mapName)
         loadAndRunScript(mapName, scriptUrl)
@@ -76,6 +77,16 @@ local function runLoader()
         print("Running universal script: " .. universalName)
         loadAndRunScript(universalName, universalUrl)
     end
+
+    -- Display notification with map name
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {
+            Title = "Map Loaded",
+            Text = "Connect : " .. game:GetService("Players").LocalPlayer.Name .. " | Map: " .. mapName,
+            Duration = 5,
+            Icon = 'rbxassetid://6403436082'
+        })
+    end)
 end
 
 -- Function to load and run a script with error handling
@@ -129,6 +140,16 @@ local scripts = {
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
     },
 }
+
+-- Display notification when the script starts
+pcall(function()
+    game:GetService("StarterGui"):SetCore("SendNotification", {
+        Title = "BorwonCheck",
+        Text = "Connect : " .. game:GetService("Players").LocalPlayer.Name .. "",
+        Duration = 5,
+        Icon = 'rbxassetid://6403436082'
+    })
+end)
 
 -- Start the loader
 runLoader()
