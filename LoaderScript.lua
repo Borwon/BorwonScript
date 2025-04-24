@@ -212,10 +212,7 @@ local scripts = {
     {
         ids = {18668065416}, -- Example Game IDs for BlueLockRivals
         name = "BlueLockRivals",
-        urls = {
-            "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua",
-            "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AntiTeleport.lua"
-        }
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
     },
     {
         ids = {72829404259339}, -- Example Game IDs for AnimeRangerX
@@ -259,35 +256,28 @@ local function runLoader()
         local currentGame = game.PlaceId
         DebugSystem:log("info", "ตรวจสอบ ID เกม: " .. currentGame)
 
-        -- Run map-specific scripts if found
-        local matchedScripts = {}
+        -- Run map-specific script if found
+        local matchedScript = nil
         if type(scripts) == "table" then -- Ensure 'scripts' is a valid table
             for _, script in ipairs(scripts) do
                 for _, id in ipairs(script.ids) do
                     if id == currentGame then
-                        table.insert(matchedScripts, script)
+                        matchedScript = script
+                        break
                     end
                 end
+                if matchedScript then break end
             end
         else
             DebugSystem:log("error", "'scripts' ไม่ใช่ตารางที่ถูกต้อง", true)
         end
 
         local mapName = "Unknown Map"
-        if #matchedScripts > 0 then
-            for _, script in ipairs(matchedScripts) do
-                mapName = script.name
-                if script.urls then
-                    for _, scriptUrl in ipairs(script.urls) do
-                        DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
-                        loadAndRunScript(mapName, scriptUrl)
-                    end
-                else
-                    local scriptUrl = script.url
-                    DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
-                    loadAndRunScript(mapName, scriptUrl)
-                end
-            end
+        if matchedScript then
+            mapName = matchedScript.name
+            local scriptUrl = matchedScript.url
+            DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
+            loadAndRunScript(mapName, scriptUrl)
         else
             DebugSystem:log("warning", "ไม่พบสคริปต์สำหรับเกมนี้ (ID: " .. currentGame .. ")", true)
         end
