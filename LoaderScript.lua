@@ -22,6 +22,7 @@ local config = {
     -- ตั้งค่า Performance
     checkPlaceIdInterval = 15,        -- ความถี่ในการตรวจสอบ PlaceId (วินาที)
     periodicReloadInterval = 600,     -- ความถี่ในการรีโหลดตามเวลา (วินาที)
+    memoryCheckInterval = 60,         -- ความถี่ในการตรวจสอบหน่วยความจำ (วินาที)
     
     -- ตั้งค่า Universal Script
     universalScript = {
@@ -32,8 +33,52 @@ local config = {
     
     -- ตั้งค่าความปลอดภัย
     safeMode = true,                  -- เปิดใช้งานโหมดปลอดภัย (ป้องกันการขัดแย้งกับสคริปต์อื่น)
-    errorRecovery = true              -- เปิดใช้งานการกู้คืนจากข้อผิดพลาด
+    errorRecovery = true,             -- เปิดใช้งานการกู้คืนจากข้อผิดพลาด
+    memoryLimit = 1000                  -- จำกัดการใช้หน่วยความจำ (MB) ก่อนทำความสะอาด
 }
+
+-- ===== ระบบจัดการหน่วยความจำ =====
+local MemoryManager = {
+    gcLimit = config.memoryLimit * 1024 * 1024, -- แปลงเป็น bytes
+    lastCleanup = tick(),
+    cleanupInterval = config.memoryCheckInterval
+}
+
+function MemoryManager:checkMemory()
+    local currentMemory = gcinfo() * 1024 -- แปลงเป็น bytes
+    if currentMemory > self.gcLimit then
+        self:cleanup()
+    end
+end
+
+function MemoryManager:cleanup()
+    if tick() - self.lastCleanup < self.cleanupInterval then return end
+    
+    self.lastCleanup = tick()
+    
+    -- บันทึกข้อมูลสำคัญก่อนทำความสะอาด
+    local importantData = {
+        -- เก็บข้อมูลสำคัญที่ต้องการเก็บไว้
+    }
+    
+    -- ทำความสะอาดหน่วยความจำ
+    collectgarbage("collect")
+    
+    -- คืนค่าข้อมูลสำคัญ
+    -- (ทำตามความเหมาะสม)
+    
+    if config.debugMode then
+        print("🧹 ทำความสะอาดหน่วยความจำแล้ว - ใช้หน่วยความจำปัจจุบัน: " .. math.floor(gcinfo() / 1024) .. " MB")
+    end
+end
+
+-- ตั้งเวลาตรวจสอบหน่วยความจำเป็นระยะ
+task.spawn(function()
+    while true do
+        task.wait(config.memoryCheckInterval)
+        MemoryManager:checkMemory()
+    end
+end)
 
 -- ===== ระบบ Debug ที่สวยงามและมีประสิทธิภาพ =====
 local DebugSystem = {
@@ -243,6 +288,9 @@ local function runLoader()
     isRunning = true
     lastRunTime = tick()
     
+    -- ทำความสะอาดหน่วยความจำก่อนรันสคริปต์
+    MemoryManager:checkMemory()
+    
     -- ใช้ pcall เพื่อป้องกันข้อผิดพลาดที่อาจทำให้ loader หยุดทำงาน
     local success, err = pcall(function()
         -- Wait for game to load
@@ -412,6 +460,9 @@ end)
 -- ทำความสะอาดเมื่อสคริปต์ถูกยกเลิก
 local function cleanup()
     DebugSystem:log("system", "กำลังทำความสะอาดก่อนยกเลิกสคริปต์", true)
+    
+    -- ทำความสะอาดหน่วยความจำ
+    MemoryManager:cleanup()
     
     -- รีเซ็ตตัวแปรสถานะ
     _G.BorwonLoaderRunning = false
