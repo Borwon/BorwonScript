@@ -1,5 +1,5 @@
 -- ===== BorwonCheck - Enhanced Loader Version 2.1 =====
--- Fully optimized script loader with Discord notifications and error prevention
+-- Optimized script loader with beautiful debug system
 
 -- ป้องกันการรันซ้ำ
 if _G.BorwonLoaderRunning then
@@ -17,25 +17,11 @@ local config = {
     debugMode = true,                 -- เปิดใช้งานโหมด debug
     coloredOutput = true,             -- เปิดใช้งานสีในการแสดงผล
     showTimestamps = true,            -- แสดงเวลาในข้อความ debug
-    maxDebugMessages = 10000,           -- จำกัดจำนวนข้อความ debug สูงสุด
+    maxDebugMessages = 100,           -- จำกัดจำนวนข้อความ debug สูงสุด
     
     -- ตั้งค่า Performance
     checkPlaceIdInterval = 15,        -- ความถี่ในการตรวจสอบ PlaceId (วินาที)
     periodicReloadInterval = 600,     -- ความถี่ในการรีโหลดตามเวลา (วินาที)
-    memoryCheckInterval = 60,         -- ความถี่ในการตรวจสอบหน่วยความจำ (วินาที)
-    
-    -- ตั้งค่า Discord Webhook
-    discordNotifications = {
-        enabled = true,               -- เปิดใช้งานการแจ้งเตือนผ่าน Discord
-        webhookUrl = "https://discord.com/api/webhooks/1365021057970471104/yRNEmRXSnV0saY57-tXmJAQ98ubvfzt-2rmyBedVV4bbkhBmQ4s3vRKW7pRCmmATbKM1", -- URL ของ Discord Webhook
-        notifyOnErrors = true,        -- แจ้งเตือนเมื่อเกิด error
-        notifyOnScriptLoad = true,    -- แจ้งเตือนเมื่อโหลดสคริปต์สำเร็จ
-        includeGameInfo = true,       -- รวมข้อมูลเกมในการแจ้งเตือน
-        username = "BorwonCheck Bot", -- ชื่อที่แสดงใน Discord
-        avatarUrl = "https://www.roblox.com/favicon.ico", -- รูปโปรไฟล์ที่แสดงใน Discord
-        cooldownSeconds = 10,         -- เวลาคูลดาวน์ระหว่างการส่งข้อความ (วินาที)
-        maxRetries = 3                -- จำนวนครั้งสูงสุดในการลองส่งข้อความซ้ำ
-    },
     
     -- ตั้งค่า Universal Script
     universalScript = {
@@ -46,53 +32,8 @@ local config = {
     
     -- ตั้งค่าความปลอดภัย
     safeMode = true,                  -- เปิดใช้งานโหมดปลอดภัย (ป้องกันการขัดแย้งกับสคริปต์อื่น)
-    errorRecovery = true,             -- เปิดใช้งานการกู้คืนจากข้อผิดพลาด
-    memoryLimit = 50,                 -- จำกัดการใช้หน่วยความจำ (MB) ก่อนทำความสะอาด
-    backupScriptUrls = true           -- สำรองลิงก์สคริปต์ในกรณีที่ลิงก์หลักไม่ทำงาน
+    errorRecovery = true              -- เปิดใช้งานการกู้คืนจากข้อผิดพลาด
 }
-
--- ===== ระบบจัดการหน่วยความจำ =====
-local MemoryManager = {
-    gcLimit = config.memoryLimit * 1024 * 1024, -- แปลงเป็น bytes
-    lastCleanup = tick(),
-    cleanupInterval = config.memoryCheckInterval
-}
-
-function MemoryManager:checkMemory()
-    local currentMemory = gcinfo() * 1024 -- แปลงเป็น bytes
-    if currentMemory > self.gcLimit then
-        self:cleanup()
-    end
-end
-
-function MemoryManager:cleanup()
-    if tick() - self.lastCleanup < self.cleanupInterval then return end
-    
-    self.lastCleanup = tick()
-    
-    -- บันทึกข้อมูลสำคัญก่อนทำความสะอาด
-    local importantData = {
-        -- เก็บข้อมูลสำคัญที่ต้องการเก็บไว้
-    }
-    
-    -- ทำความสะอาดหน่วยความจำ
-    collectgarbage("collect")
-    
-    -- คืนค่าข้อมูลสำคัญ
-    -- (ทำตามความเหมาะสม)
-    
-    if config.debugMode then
-        print("🧹 ทำความสะอาดหน่วยความจำแล้ว - ใช้หน่วยความจำปัจจุบัน: " .. math.floor(gcinfo() / 1024) .. " MB")
-    end
-end
-
--- ตั้งเวลาตรวจสอบหน่วยความจำเป็นระยะ
-task.spawn(function()
-    while true do
-        task.wait(config.memoryCheckInterval)
-        MemoryManager:checkMemory()
-    end
-end)
 
 -- ===== ระบบ Debug ที่สวยงามและมีประสิทธิภาพ =====
 local DebugSystem = {
@@ -158,126 +99,6 @@ function DebugSystem:log(type, message, forceShow)
     else
         print(formattedMessage)
     end
-    
-    -- ส่งข้อความไปยัง Discord ถ้าเป็น error และเปิดใช้งานการแจ้งเตือน
-    if type == "error" and config.discordNotifications.enabled and config.discordNotifications.notifyOnErrors then
-        self:sendDiscordNotification("Error", message)
-    end
-end
-
--- ตัวแปรสำหรับจำกัดความถี่ในการส่งข้อความไปยัง Discord
-local lastDiscordNotification = 0
-local discordRetryCount = 0
-
--- ฟังก์ชันสำหรับส่งข้อความไปยัง Discord Webhook ที่มีประสิทธิภาพ
-function DebugSystem:sendDiscordNotification(title, message)
-    if not config.discordNotifications.enabled or not config.discordNotifications.webhookUrl then return end
-    
-    -- จำกัดความถี่ในการส่งข้อมูลไปยัง Discord
-    local currentTime = os.time()
-    if currentTime - lastDiscordNotification < config.discordNotifications.cooldownSeconds then
-        self:log("debug", "จำกัดการส่งข้อมูลไปยัง Discord (รอ " .. config.discordNotifications.cooldownSeconds .. " วินาที)")
-        return
-    end
-    lastDiscordNotification = currentTime
-    
-    -- สร้างข้อมูลสำหรับส่งไปยัง Discord
-    local gameInfo = ""
-    if config.discordNotifications.includeGameInfo then
-        local success, result = pcall(function()
-            local placeId = game.PlaceId
-            local placeName = "Unknown"
-            
-            -- ดึงชื่อเกมด้วยวิธีที่ปลอดภัย
-            pcall(function()
-                placeName = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name
-            end)
-            
-            local playerName = "Unknown"
-            pcall(function()
-                playerName = game:GetService("Players").LocalPlayer.Name
-            end)
-            
-            return string.format("Game: %s (%d)\nPlayer: %s", placeName, placeId, playerName)
-        end)
-        
-        if success then
-            gameInfo = result
-        else
-            gameInfo = "Could not fetch game info"
-        end
-    end
-    
-    -- สร้าง payload สำหรับส่งไปยัง Discord
-    local payload = {
-        username = config.discordNotifications.username,
-        avatar_url = config.discordNotifications.avatarUrl,
-        embeds = {{
-            title = title,
-            description = message,
-            color = (title == "Error") and 16711680 or 5814783, -- สีแดงสำหรับ Error, สีฟ้าสำหรับอื่นๆ
-            fields = {},
-            footer = {
-                text = "BorwonCheck Loader v2.1"
-            },
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        }}
-    }
-    
-    -- เพิ่มข้อมูลเกมถ้าเปิดใช้งาน
-    if gameInfo ~= "" then
-        table.insert(payload.embeds[1].fields, {
-            name = "Game Information",
-            value = gameInfo,
-            inline = false
-        })
-    end
-    
-    -- แปลง payload เป็น JSON ด้วยวิธีที่ปลอดภัย
-    local jsonPayload = ""
-    local jsonSuccess = pcall(function()
-        jsonPayload = game:GetService("HttpService"):JSONEncode(payload)
-    end)
-    
-    if not jsonSuccess then
-        self:log("error", "ไม่สามารถแปลงข้อมูลเป็น JSON ได้", true)
-        return
-    end
-    
-    -- ส่งข้อมูลไปยัง Discord Webhook ด้วยระบบลองใหม่
-    task.spawn(function()
-        local success = false
-        local retryCount = 0
-        
-        while not success and retryCount < config.discordNotifications.maxRetries do
-            local sendSuccess, sendError = pcall(function()
-                game:GetService("HttpService"):PostAsync(
-                    config.discordNotifications.webhookUrl,
-                    jsonPayload,
-                    Enum.HttpContentType.ApplicationJson
-                )
-            end)
-            
-            if sendSuccess then
-                success = true
-                discordRetryCount = 0
-            else
-                retryCount = retryCount + 1
-                discordRetryCount = discordRetryCount + 1
-                
-                -- ถ้าลองส่งหลายครั้งแล้วยังไม่สำเร็จ ให้รอนานขึ้น
-                if discordRetryCount > 5 then
-                    task.wait(5)
-                else
-                    task.wait(1)
-                end
-            end
-        end
-        
-        if not success and config.debugMode then
-            self:log("warning", "ไม่สามารถส่งข้อมูลไปยัง Discord ได้หลังจากลองซ้ำ " .. config.discordNotifications.maxRetries .. " ครั้ง", true)
-        end
-    end)
 end
 
 -- ฟังก์ชันสำหรับแสดงข้อความแบบสวยงาม
@@ -335,17 +156,7 @@ local function waitForGameLoaded(timeout)
     return true
 end
 
--- ระบบสำรองลิงก์สคริปต์
-local function getBackupUrl(originalUrl)
-    if not config.backupScriptUrls then return originalUrl end
-    
-    -- สร้างลิงก์สำรองโดยเปลี่ยนโดเมน (ตัวอย่างเท่านั้น)
-    local backupUrl = originalUrl:gsub("raw.githubusercontent.com", "raw.githack.com")
-    
-    return backupUrl
-end
-
--- Function to load and run a script with error handling and backup URLs
+-- Function to load and run a script with error handling
 local function loadAndRunScript(name, url)
     DebugSystem:log("info", "กำลังโหลดสคริปต์: " .. name)
     local executor = loadstring or load
@@ -365,19 +176,7 @@ local function loadAndRunScript(name, url)
         if mainSuccess and mainResponse and mainResponse ~= "" then
             response = mainResponse
         else
-            -- ถ้าโหลดจาก URL หลักไม่สำเร็จ ให้ลองโหลดจาก URL สำรอง
-            local backupUrl = getBackupUrl(url)
-            DebugSystem:log("warning", "ไม่สามารถโหลดจาก URL หลัก กำลังลองใช้ URL สำรอง", true)
-            
-            local backupSuccess, backupResponse = pcall(function()
-                return game:HttpGet(backupUrl)
-            end)
-            
-            if backupSuccess and backupResponse and backupResponse ~= "" then
-                response = backupResponse
-            else
-                error("ไม่สามารถโหลดสคริปต์จาก URL หลักและ URL สำรองได้")
-            end
+            error("ไม่สามารถโหลดสคริปต์จาก URL ได้")
         end
         
         if not response or response == "" then
@@ -396,27 +195,9 @@ local function loadAndRunScript(name, url)
 
     if not success then
         DebugSystem:log("error", "โหลดสคริปต์ล้มเหลว: " .. tostring(err), true)
-        
-        -- ส่งการแจ้งเตือนไปยัง Discord
-        if config.discordNotifications.enabled and config.discordNotifications.notifyOnErrors then
-            DebugSystem:sendDiscordNotification(
-                "Script Load Failed: " .. name,
-                "Error: " .. tostring(err)
-            )
-        end
-        
         return false
     else
         DebugSystem:log("success", "โหลดสคริปต์สำเร็จ: " .. name, true)
-        
-        -- ส่งการแจ้งเตือนไปยัง Discord
-        if config.discordNotifications.enabled and config.discordNotifications.notifyOnScriptLoad then
-            DebugSystem:sendDiscordNotification(
-                "Script Loaded: " .. name,
-                "Script has been loaded successfully."
-            )
-        end
-        
         return true
     end
 end
@@ -431,7 +212,10 @@ local scripts = {
     {
         ids = {18668065416}, -- Example Game IDs for BlueLockRivals
         name = "BlueLockRivals",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
+        urls = {
+            "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua",
+            "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AntiTeleport.lua"
+        }
     },
     {
         ids = {72829404259339}, -- Example Game IDs for AnimeRangerX
@@ -441,40 +225,26 @@ local scripts = {
 }
 
 -- ตัวแปรเก็บสถานะการทำงาน
-local loaderState = {
-    isRunning = false,
-    lastRunTime = 0,
-    runCount = 0,
-    errors = {},
-    loadedScripts = {}
-}
+local isRunning = false
+local lastRunTime = 0
 
 -- Main function to run the loader with error recovery
 local function runLoader()
     -- ป้องกันการรันซ้ำในเวลาใกล้เคียงกัน
-    if loaderState.isRunning then
+    if isRunning then
         DebugSystem:log("debug", "Loader กำลังทำงานอยู่แล้ว ข้ามการรันซ้ำ")
         return
     end
     
     -- ตรวจสอบเวลาที่รันครั้งล่าสุด
-    if tick() - loaderState.lastRunTime < 5 then
+    if tick() - lastRunTime < 5 then
         DebugSystem:log("debug", "รันครั้งล่าสุดเมื่อไม่นานมานี้ ข้ามการรันซ้ำ")
         return
     end
     
     -- ตั้งค่าสถานะการทำงาน
-    loaderState.isRunning = true
-    loaderState.lastRunTime = tick()
-    loaderState.runCount = loaderState.runCount + 1
-    
-    -- ล้างข้อผิดพลาดเก่า
-    if #loaderState.errors > 10 then
-        table.remove(loaderState.errors, 1)
-    end
-    
-    -- ทำความสะอาดหน่วยความจำก่อนรันสคริปต์
-    MemoryManager:checkMemory()
+    isRunning = true
+    lastRunTime = tick()
     
     -- ใช้ pcall เพื่อป้องกันข้อผิดพลาดที่อาจทำให้ loader หยุดทำงาน
     local success, err = pcall(function()
@@ -489,34 +259,34 @@ local function runLoader()
         local currentGame = game.PlaceId
         DebugSystem:log("info", "ตรวจสอบ ID เกม: " .. currentGame)
 
-        -- Run map-specific script if found
-        local matchedScript = nil
+        -- Run map-specific scripts if found
+        local matchedScripts = {}
         if type(scripts) == "table" then -- Ensure 'scripts' is a valid table
             for _, script in ipairs(scripts) do
                 for _, id in ipairs(script.ids) do
                     if id == currentGame then
-                        matchedScript = script
-                        break
+                        table.insert(matchedScripts, script)
                     end
                 end
-                if matchedScript then break end
             end
         else
             DebugSystem:log("error", "'scripts' ไม่ใช่ตารางที่ถูกต้อง", true)
         end
 
         local mapName = "Unknown Map"
-        if matchedScript then
-            mapName = matchedScript.name
-            local scriptUrl = matchedScript.url
-            DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
-            
-            local loadSuccess = loadAndRunScript(mapName, scriptUrl)
-            if loadSuccess then
-                table.insert(loaderState.loadedScripts, {
-                    name = mapName,
-                    time = os.date("%H:%M:%S")
-                })
+        if #matchedScripts > 0 then
+            for _, script in ipairs(matchedScripts) do
+                mapName = script.name
+                if script.urls then
+                    for _, scriptUrl in ipairs(script.urls) do
+                        DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
+                        loadAndRunScript(mapName, scriptUrl)
+                    end
+                else
+                    local scriptUrl = script.url
+                    DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
+                    loadAndRunScript(mapName, scriptUrl)
+                end
             end
         else
             DebugSystem:log("warning", "ไม่พบสคริปต์สำหรับเกมนี้ (ID: " .. currentGame .. ")", true)
@@ -527,14 +297,7 @@ local function runLoader()
             local universalName = config.universalScript.name
             local universalUrl = config.universalScript.url
             DebugSystem:log("info", "กำลังรันสคริปต์ Universal: " .. universalName .. " สำหรับแมพ: " .. mapName)
-            
-            local loadSuccess = loadAndRunScript(universalName, universalUrl)
-            if loadSuccess then
-                table.insert(loaderState.loadedScripts, {
-                    name = universalName,
-                    time = os.date("%H:%M:%S")
-                })
-            end
+            loadAndRunScript(universalName, universalUrl)
         else
             DebugSystem:log("error", "'config' หรือ 'config.universalScript' ไม่ได้กำหนดค่าอย่างถูกต้อง", true)
         end
@@ -543,22 +306,10 @@ local function runLoader()
     -- จัดการกับข้อผิดพลาดที่อาจเกิดขึ้น
     if not success then
         DebugSystem:log("error", "เกิดข้อผิดพลาดในการรัน Loader: " .. tostring(err), true)
-        table.insert(loaderState.errors, {
-            message = tostring(err),
-            time = os.date("%H:%M:%S")
-        })
-        
-        -- ส่งการแจ้งเตือนไปยัง Discord
-        if config.discordNotifications.enabled and config.discordNotifications.notifyOnErrors then
-            DebugSystem:sendDiscordNotification(
-                "Loader Error",
-                "Error: " .. tostring(err)
-            )
-        end
     end
     
     -- รีเซ็ตสถานะการทำงาน
-    loaderState.isRunning = false
+    isRunning = false
 end
 
 -- ===== ระบบตรวจจับการเข้าเกมใหม่ =====
@@ -628,20 +379,6 @@ local function setupRejoinDetection()
         task.wait(5)
         runLoader()
     end)
-    
-    -- ตรวจจับ error ทั่วไปและส่งไปยัง Discord
-    task.spawn(function()
-        local oldError = error
-        error = function(message, level)
-            if config.discordNotifications.enabled and config.discordNotifications.notifyOnErrors then
-                DebugSystem:sendDiscordNotification(
-                    "Script Error",
-                    tostring(message)
-                )
-            end
-            return oldError(message, level)
-        end
-    end)
 end
 
 -- ตั้งค่าการตรวจจับ rejoin
@@ -650,7 +387,7 @@ setupRejoinDetection()
 -- แสดงข้อความเริ่มต้นสวยๆ
 DebugSystem:showBeautifulMessage(
     "BorwonCheck Loader v2.1",
-    "สคริปต์โหลดเดอร์ที่มีระบบ Debug สวยงามและการแจ้งเตือนผ่าน Discord\nพร้อมสำหรับการ rejoin และการเปลี่ยนแมพ",
+    "สคริปต์โหลดเดอร์ที่มีระบบ Debug สวยงาม\nพร้อมสำหรับการ rejoin และการเปลี่ยนแมพ",
     "highlight"
 )
 
@@ -670,7 +407,7 @@ task.spawn(function()
         local needsReload = false
         pcall(function()
             -- ตรวจสอบว่าสคริปต์ยังทำงานอยู่หรือไม่
-            if tick() - loaderState.lastRunTime > 300 then -- ถ้าไม่ได้รันมานานกว่า 5 นาที
+            if tick() - lastRunTime > 300 then -- ถ้าไม่ได้รันมานานกว่า 5 นาที
                 needsReload = true
             end
         end)
@@ -682,34 +419,9 @@ task.spawn(function()
     end
 end)
 
--- ตรวจจับ error และส่งไปยัง Discord
-local oldErrorHandler = game:GetService("ScriptContext").Error
-game:GetService("ScriptContext").Error:Connect(function(message, stack, script)
-    if config.discordNotifications.enabled and config.discordNotifications.notifyOnErrors then
-        DebugSystem:log("error", "เกิด Error: " .. message, true)
-        
-        -- ส่งการแจ้งเตือนไปยัง Discord
-        DebugSystem:sendDiscordNotification(
-            "Roblox Script Error",
-            "Error: " .. message .. "\n\nStack: " .. (stack or "N/A")
-        )
-    end
-end)
-
 -- ทำความสะอาดเมื่อสคริปต์ถูกยกเลิก
 local function cleanup()
     DebugSystem:log("system", "กำลังทำความสะอาดก่อนยกเลิกสคริปต์", true)
-    
-    -- ทำความสะอาดหน่วยความจำ
-    MemoryManager:cleanup()
-    
-    -- ส่งการแจ้งเตือนไปยัง Discord
-    if config.discordNotifications.enabled then
-        DebugSystem:sendDiscordNotification(
-            "Script Unloaded",
-            "BorwonCheck Loader has been unloaded."
-        )
-    end
     
     -- รีเซ็ตตัวแปรสถานะ
     _G.BorwonLoaderRunning = false
