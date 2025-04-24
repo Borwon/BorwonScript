@@ -308,7 +308,7 @@ local function updateProgress(percentage)
         UDim2.new(percentage/100, 0, 1, 0),
         Enum.EasingDirection.Out,
         Enum.EasingStyle.Quart, -- Changed to Quart for smoother animation
-        0.3, -- Slightly longer animation for smoother feel
+        config.progressAnimationDuration, -- Slightly longer animation for smoother feel
         true
     )
 end
@@ -533,6 +533,134 @@ end)
 
 -- ===== LOADER SCRIPT FUNCTIONALITY =====
 
+-- Configuration table for easier management
+local config = {
+    universalScript = {
+        enabled = true, -- Enable or disable the universal script
+        name = "AutoKickandRejoin",
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AutoKickandRejoin.lua"
+    },
+    timeout = 30, -- Default timeout for game loading
+    progressAnimationDuration = 0.3 -- Duration for progress bar animations
+}
+
+-- Table of scripts for different games
+local scripts = {
+    {
+        ids = {116614712661486}, -- Example Game IDs for AriseCrossoverAFK
+        name = "AriseCrossoverAFK",
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
+    },
+    {
+        ids = {115110570222234, 18668065416}, -- Example Game IDs for BlueLockRivals
+        name = "BlueLockRivals",
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
+    },
+    {
+        ids = {72829404259339}, -- Example Game IDs for AnimeRangerX
+        name = "AnimeRangerX",
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
+    },
+}
+
+-- Main function to run the loader with improved error handling
+local function runLoader()
+    -- Initial UI setup
+    updateStatusText("Initializing loader...")
+    updateProgress(0)
+    
+    -- Wait for game to load
+    updateStatusText("Waiting for game to load...")
+    local gameLoaded = waitForGameLoaded(config.timeout)
+    
+    if gameLoaded then
+        updateStatus("Ready", Color3.fromRGB(0, 255, 0))
+        updateStatusText("✅ Ready to load scripts!")
+        updateProgress(60)
+    else
+        updateStatus("Error: Game Load Failed", Color3.fromRGB(255, 0, 0))
+        return
+    end
+    
+    -- Check current game ID
+    local currentGame = game.PlaceId
+    updateStatusText("Checking game ID: " .. currentGame)
+    updateProgress(70)
+    
+    -- Find matching script with improved error handling
+    local matchedScript = nil
+    
+    pcall(function()
+        for _, script in ipairs(scripts) do
+            for _, id in ipairs(script.ids) do
+                if id == currentGame then
+                    matchedScript = script
+                    break
+                end
+            end
+            if matchedScript then break end
+        end
+    end)
+    
+    -- Run map-specific script if found
+    if matchedScript then
+        local mapName = matchedScript.name
+        local scriptUrl = matchedScript.url
+        
+        updateStatusText("🌐 Found script: " .. mapName)
+        updateProgress(80)
+        
+        -- Load and run the map-specific script
+        loadAndRunScript(mapName, scriptUrl)
+    else
+        updateStatusText("🚫 No map-specific script found for this game (ID: " .. currentGame .. ")")
+    end
+    
+    -- Always run the universal script if enabled
+    if config.universalScript.enabled then
+        local universalName = config.universalScript.name
+        local universalUrl = config.universalScript.url
+        
+        updateStatusText("🌐 Running universal script: " .. universalName)
+        updateProgress(90)
+        
+        -- Load and run the universal script
+        loadAndRunScript(universalName, universalUrl)
+    end
+    
+    updateProgress(100)
+end
+
+-- Function to load and run a script with error handling
+local function loadAndRunScript(name, url)
+    updateStatusText("Loading script for: " .. name)
+    updateProgress(90)
+    
+    local executor = loadstring or load
+    if not executor then
+        updateStatus("Error: No Executor", Color3.fromRGB(255, 0, 0))
+        updateStatusText("❌ No loadstring/load function available.")
+        return
+    end
+    
+    local success, err = pcall(function()
+        local response = game:HttpGet(url)
+        if not response or response == "" then
+            error("Empty or invalid response.")
+        end
+        executor(response)()
+    end)
+    
+    if not success then
+        updateStatus("Error: Script Load Failed", Color3.fromRGB(255, 0, 0))
+        updateStatusText("❌ Script load failed: " .. tostring(err))
+    else
+        updateStatus("Running: " .. name, Color3.fromRGB(0, 255, 0))
+        updateStatusText("✅ Script loaded successfully!")
+        updateProgress(100)
+    end
+end
+
 -- Function to wait for game to load with improved error handling
 local function waitForGameLoaded(timeout)
     updateStatusText("Waiting for game to load...")
@@ -636,115 +764,14 @@ local function updateStatus(status, color)
     end
 end
 
--- Table of scripts for different games
-local scripts = {
-    {
-        ids = {116614712661486}, -- Example Game IDs for AriseCrossoverAFK
-        name = "AriseCrossoverAFK",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
-    },
-    {
-        ids = {115110570222234, 18668065416}, -- Example Game IDs for BlueLockRivals
-        name = "BlueLockRivals",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
-    },
-    {
-        ids = {72829404259339}, -- Example Game IDs for AnimeRangerX
-        name = "AnimeRangerX",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
-    },
-}
-
--- Main function to run the loader with improved error handling
-local function runLoader()
-    -- Initial UI setup
-    updateStatusText("Initializing loader...")
-    updateProgress(0)
-    
-    -- Wait for game to load
-    updateStatusText("Waiting for game to load...")
-    local gameLoaded = waitForGameLoaded()
-    
-    if gameLoaded then
-        updateStatus("Ready", Color3.fromRGB(0, 255, 0))
-        updateStatusText("✅ Ready to load scripts!")
-        updateProgress(60)
-    else
-        updateStatus("Error: Game Load Failed", Color3.fromRGB(255, 0, 0))
-        return
-    end
-    
-    -- Check current game ID
-    local currentGame = game.PlaceId
-    updateStatusText("Checking game ID: " .. currentGame)
-    updateProgress(70)
-    
-    -- Find matching script with improved error handling
-    local matchedScript = nil
-    
-    pcall(function()
-        for _, script in ipairs(scripts) do
-            for _, id in ipairs(script.ids) do
-                if id == currentGame then
-                    matchedScript = script
-                    break
-                end
-            end
-            if matchedScript then break end
-        end
-    end)
-    
-    -- Check if a matching script was found with improved error handling
-    if matchedScript then
-        local mapName = matchedScript.name
-        local scriptUrl = matchedScript.url
-        
-        updateStatusText("🌐 Found script: " .. mapName)
-        updateProgress(80)
-        
-        -- Check if loadstring or load is available
-        local executor = loadstring or load
-        if not executor then
-            updateStatus("Error: No Executor", Color3.fromRGB(255, 0, 0))
-            updateStatusText("❌ No loadstring/load function available.")
-            return
-        end
-        
-        -- Try to load and run the script with better error handling
-        updateStatusText("Loading script for: " .. mapName)
-        updateProgress(90)
-        
-        local success, err = pcall(function()
-            local response = game:HttpGet(scriptUrl)
-            if not response or response == "" then
-                error("Empty or invalid response.")
-            end
-            executor(response)()
-        end)
-        
-        if not success then
-            updateStatus("Error: Script Load Failed", Color3.fromRGB(255, 0, 0))
-            updateStatusText("❌ Script load failed: " .. tostring(err))
-        else
-            updateStatus("Running: " .. mapName, Color3.fromRGB(0, 255, 0))
-            updateStatusText("✅ Script loaded successfully!")
-            updateProgress(100)
-        end
-    else
-        updateStatus("No Script Found", Color3.fromRGB(255, 165, 0))
-        updateStatusText("🚫 No script found for this game (ID: " .. currentGame .. ")")
-        updateProgress(100)
-    end
-end
-
 -- Add click handler to compact frame to expand back to full UI with improved animation
 CompactFrame.InputBegan:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         -- Create expand animation
         CompactFrame:TweenSize(
-            UDim2.new(0, 230, 0, 50),
+            UDim2.new(0, 225, 0, 48),
             Enum.EasingDirection.Out,
-            Enum.EasingStyle.Back,
+            Enum.EasingStyle.Quad,
             0.2,
             true,
             function()
