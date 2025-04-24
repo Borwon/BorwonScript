@@ -35,60 +35,6 @@ local function waitForGameLoaded(timeout)
     return true
 end
 
--- Main function to run the loader
-local function runLoader()
-    -- Wait for game to load
-    local gameLoaded = waitForGameLoaded(15)
-    if not gameLoaded then
-        warn("Game loading timeout!")
-        return
-    end
-
-    -- Check current game ID
-    local currentGame = game.PlaceId
-    print("Checking game ID: " .. currentGame)
-
-    -- Run map-specific script if found
-    local matchedScript = nil
-    for _, script in ipairs(scripts) do
-        for _, id in ipairs(script.ids) do
-            if id == currentGame then
-                matchedScript = script
-                break
-            end
-        end
-        if matchedScript then break end
-    end
-
-    local mapName = "Unknown Map"
-    if matchedScript then
-        mapName = matchedScript.name
-        local scriptUrl = matchedScript.url
-        print("Found script: " .. mapName)
-        loadAndRunScript(mapName, scriptUrl)
-    else
-        print("No map-specific script found for this game (ID: " .. currentGame .. ")")
-    end
-
-    -- Always run the universal script
-    if config.universalScript.enabled then
-        local universalName = config.universalScript.name
-        local universalUrl = config.universalScript.url
-        print("Running universal script: " .. universalName .. " for map: " .. mapName) -- Debug message
-        loadAndRunScript(universalName, universalUrl)
-    end
-
-    -- Display notification with map name
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "Map Loaded",
-            Text = "Connect : " .. game:GetService("Players").LocalPlayer.Name .. " | Map: " .. mapName,
-            Duration = 5,
-            Icon = 'rbxassetid://6403436082'
-        })
-    end)
-end
-
 -- Function to load and run a script with error handling
 local function loadAndRunScript(name, url)
     print("Loading script for: " .. name)
@@ -116,9 +62,9 @@ end
 -- Configuration table for easier management
 local config = {
     universalScript = {
-        enabled = true, -- Enable or disable the universal script
-        name = "AutoKickandRejoin",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AutoKickandRejoin.lua"
+        enabled = true, -- เปิดใช้งาน Universal Script หรือไม่
+        name = "AutoKickandRejoin", -- ชื่อของ Universal Script
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AutoKickandRejoin.lua" -- ลิงก์ไปยังสคริปต์
     }
 }
 
@@ -130,7 +76,7 @@ local scripts = {
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
     },
     {
-        ids = {115110570222234, 18668065416}, -- Example Game IDs for BlueLockRivals
+        ids = {18668065416}, -- Example Game IDs for BlueLockRivals
         name = "BlueLockRivals",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
     },
@@ -141,15 +87,59 @@ local scripts = {
     },
 }
 
--- Display notification when the script starts
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "BorwonCheck",
-        Text = "Connect : " .. game:GetService("Players").LocalPlayer.Name .. "",
-        Duration = 5,
-        Icon = 'rbxassetid://6403436082'
-    })
-end)
+-- Debugging: Print the state of 'scripts' and 'config'
+print("Debug: scripts =", scripts)
+print("Debug: config =", config)
 
--- Start the loader
+-- Main function to run the loader
+local function runLoader()
+    -- Wait for game to load
+    local gameLoaded = waitForGameLoaded(15)
+    if not gameLoaded then
+        warn("Game loading timeout!")
+        return
+    end
+
+    -- Check current game ID
+    local currentGame = game.PlaceId
+    print("Checking game ID: " .. currentGame)
+
+    -- Run map-specific script if found
+    local matchedScript = nil
+    if type(scripts) == "table" then -- Ensure 'scripts' is a valid table
+        for _, script in ipairs(scripts) do
+            for _, id in ipairs(script.ids) do
+                if id == currentGame then
+                    matchedScript = script
+                    break
+                end
+            end
+            if matchedScript then break end
+        end
+    else
+        warn("'scripts' is not a valid table. Debug: scripts =", scripts) -- Debugging
+    end
+
+    local mapName = "Unknown Map"
+    if matchedScript then
+        mapName = matchedScript.name
+        local scriptUrl = matchedScript.url
+        print("Found script: " .. mapName)
+        loadAndRunScript(mapName, scriptUrl)
+    else
+        print("No map-specific script found for this game (ID: " .. currentGame .. ")")
+    end
+
+    -- Always run the universal script
+    if config and config.universalScript and config.universalScript.enabled then -- Ensure 'config' and 'config.universalScript' are valid
+        local universalName = config.universalScript.name
+        local universalUrl = config.universalScript.url
+        print("Running universal script: " .. universalName .. " for map: " .. mapName) -- Debug message
+        loadAndRunScript(universalName, universalUrl)
+    else
+        warn("'config' or 'config.universalScript' is not properly defined. Debug: config =", config) -- Debugging
+    end
+end
+
+-- Ensure 'runLoader()' is called after 'scripts' and 'config' are defined
 runLoader()
