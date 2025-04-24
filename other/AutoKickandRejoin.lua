@@ -28,40 +28,50 @@ local function log(message)
 end
 
 -- รอให้เกมโหลดเสร็จก่อน
-repeat task.wait() until game:IsLoaded()
-log("Script Started")
+repeat
+    log("Waiting for the game to load...")
+    task.wait()
+until game:IsLoaded()
+log("Game loaded successfully. Script Started.")
 
 -- ฟังก์ชันสำหรับตรวจสอบ map ID ปัจจุบัน
 local function getCurrentMapID()
-    return game.PlaceId
+    local mapID = game.PlaceId
+    log("Current Map ID: " .. mapID)
+    return mapID
 end
 
 -- ฟังก์ชันสำหรับเข้าแมพใหม่
 local function joinGame(placeId)
-    log("กำลังเข้าแมพ ID: " .. placeId)
+    log("Attempting to join game with Map ID: " .. placeId)
     
     local success, errorMsg = pcall(function()
         game:GetService("TeleportService"):Teleport(placeId)
     end)
     
     if not success then
-        log("เกิดข้อผิดพลาดในการเข้าแมพ: " .. errorMsg)
+        log("Error during teleportation: " .. errorMsg)
         
         -- ลองใช้วิธีอื่นถ้าวิธีแรกไม่สำเร็จ
         pcall(function()
+            log("Retrying teleportation using TeleportToPlaceInstance...")
             game:GetService("TeleportService"):TeleportToPlaceInstance(placeId, game.JobId)
         end)
+    else
+        log("Teleportation successful.")
     end
 end
 
 -- ฟังก์ชันสำหรับเตะตัวเองและเข้าแมพใหม่
 local function kickAndRejoin()
-    log("กำลังเตะตัวเองและเข้าแมพใหม่...")
+    log("Initiating kick and rejoin process...")
     
     -- เตะตัวเอง
+    log("Kicking player with message: " .. config.kick_message)
     game.Players.LocalPlayer:Kick(config.kick_message)
     
     -- รอสักครู่ก่อนเข้าแมพใหม่
+    log("Waiting for " .. config.rejoin_delay .. " seconds before rejoining...")
     task.wait(config.rejoin_delay)
     
     -- เข้าแมพใหม่
@@ -70,22 +80,24 @@ end
 
 -- ฟังก์ชันหลักสำหรับตรวจสอบและดำเนินการ
 local function checkAndTeleport()
+    log("Running checkAndTeleport...")
     local currentMapID = getCurrentMapID()
-    log("แมพปัจจุบัน ID: " .. currentMapID)
     
     if currentMapID == config.restricted_map_id then
-        log("พบว่าอยู่ในแมพที่ถูกจำกัด!")
+        log("Player is in a restricted map!")
         kickAndRejoin()
     else
-        log("ไม่ได้อยู่ในแมพที่ถูกจำกัด ไม่ต้องดำเนินการใดๆ")
+        log("Player is not in a restricted map. No action required.")
     end
 end
 
 -- ตรวจสอบทันทีเมื่อเริ่มสคริปต์
+log("Performing initial map check...")
 checkAndTeleport()
 
 -- ตรวจสอบเป็นระยะ
 while true do
+    log("Waiting for the next check (" .. config.check_interval .. " seconds)...")
     task.wait(config.check_interval)
     checkAndTeleport()
 end

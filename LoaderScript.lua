@@ -74,7 +74,7 @@ local function runLoader()
     if config.universalScript.enabled then
         local universalName = config.universalScript.name
         local universalUrl = config.universalScript.url
-        print("Running universal script: " .. universalName)
+        print("Running universal script: " .. universalName .. " for map: " .. mapName) -- Debug message
         loadAndRunScript(universalName, universalUrl)
     end
 
