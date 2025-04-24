@@ -298,274 +298,85 @@ CompactFrame.MouseLeave:Connect(function()
     CompactStatusLabel.TextColor3 = Color3.fromRGB(220, 220, 220) -- Return to normal text color
 end)
 
--- Function to update progress bar with smoother animation
-local function updateProgress(percentage)
-    -- Ensure percentage is within valid range
-    percentage = math.clamp(percentage, 0, 100)
+-- Function to wait for game to load with optimized checks
+local function waitForGameLoaded(timeout)
+    updateStatusText("Waiting for game to load...")
+    updateProgress(5)
     
-    -- Use smoother easing for progress bar
+    timeout = timeout or 15 -- Reduced default timeout to 15 seconds
+    local startTime = tick()
+
+    -- Wait until the game is loaded
+    if not game:IsLoaded() then
+        repeat
+            if tick() - startTime > timeout then
+                updateStatusText("⏳ Game loading timeout!")
+                updateProgress(10)
+                return false
+            end
+            task.wait(0.2) -- Reduced wait time for faster checks
+        until game:IsLoaded()
+    end
+
+    updateStatusText("✅ Game loaded!")
+    updateProgress(30)
+
+    -- Check if important services are loaded
+    local services = {
+        "Players",
+        "ReplicatedStorage",
+        "Workspace",
+        "StarterGui",
+        "TweenService"
+    }
+
+    for _, serviceName in ipairs(services) do
+        local success = pcall(function()
+            game:GetService(serviceName)
+        end)
+        if not success then
+            updateStatusText("❌ Failed to load: " .. serviceName)
+        end
+        task.wait(0.05) -- Reduced delay for service checks
+    end
+
+    return true
+end
+
+-- Function to update progress bar with faster animation
+local function updateProgress(percentage)
+    percentage = math.clamp(percentage, 0, 100)
     ProgressBarFill:TweenSize(
-        UDim2.new(percentage/100, 0, 1, 0),
+        UDim2.new(percentage / 100, 0, 1, 0),
         Enum.EasingDirection.Out,
-        Enum.EasingStyle.Quart, -- Changed to Quart for smoother animation
-        config.progressAnimationDuration, -- Slightly longer animation for smoother feel
+        Enum.EasingStyle.Quad, -- Faster easing style
+        0.2, -- Reduced animation duration
         true
     )
 end
 
--- Function to update status text with optional animation
+-- Function to update status text with faster transitions
 local function updateStatusText(text)
-    -- Optional fade animation for text updates
     local function animateTextChange()
-        for i = 1, 0, -0.2 do
+        for i = 1, 0, -0.4 do -- Faster fade-out
             StatusLabel.TextTransparency = i
-            task.wait(0.01)
+            task.wait(0.005)
         end
         
         StatusLabel.Text = text
         
-        for i = 0, 1, 0.2 do
+        for i = 0, 1, 0.4 do -- Faster fade-in
             StatusLabel.TextTransparency = 1 - i
-            task.wait(0.01)
+            task.wait(0.005)
         end
         StatusLabel.TextTransparency = 0
     end
     
-    -- Use pcall to handle any animation errors gracefully
-    local success = pcall(animateTextChange)
-    if not success then
-        -- Fallback if animation fails
-        StatusLabel.Text = text
-    end
-end
-
--- Function to transition to compact mode with improved animations
-local function transitionToCompactMode(status, color)
-    -- Set the compact status
-    CompactStatusLabel.Text = "Status: " .. status
-    CompactStatusLabel.TextColor3 = color or Color3.fromRGB(0, 255, 0)
-    
-    -- Create a smoother fade out animation
-    local tweenInfo = TweenInfo.new(
-        0.5, -- Duration
-        Enum.EasingStyle.Quad,
-        Enum.EasingDirection.Out
-    )
-    
-    -- Use pcall for safer tweening
-    pcall(function()
-        -- Fade out main elements
-        local mainTween = game:GetService("TweenService"):Create(MainFrame, tweenInfo, {
-            BackgroundTransparency = 1
-        })
-        mainTween:Play()
-        
-        -- Fade out elements based on their type
-        local tweens = {
-            -- Frames (only have BackgroundTransparency)
-            game:GetService("TweenService"):Create(TopBar, tweenInfo, {
-                BackgroundTransparency = 1
-            }),
-            game:GetService("TweenService"):Create(TopBarCover, tweenInfo, {
-                BackgroundTransparency = 1
-            }),
-            game:GetService("TweenService"):Create(ProgressBarBg, tweenInfo, {
-                BackgroundTransparency = 1
-            }),
-            game:GetService("TweenService"):Create(ProgressBarFill, tweenInfo, {
-                BackgroundTransparency = 1
-            }),
-            
-            -- TextLabels (have TextTransparency and BackgroundTransparency)
-            game:GetService("TweenService"):Create(TitleLabel, tweenInfo, {
-                TextTransparency = 1,
-                BackgroundTransparency = 1
-            }),
-            game:GetService("TweenService"):Create(StatusLabel, tweenInfo, {
-                TextTransparency = 1,
-                BackgroundTransparency = 1
-            }),
-            
-            -- ImageLabels (have ImageTransparency and BackgroundTransparency)
-            game:GetService("TweenService"):Create(LogoImage, tweenInfo, {
-                ImageTransparency = 1,
-                BackgroundTransparency = 1
-            }),
-            game:GetService("TweenService"):Create(CenterLogo, tweenInfo, {
-                ImageTransparency = 1,
-                BackgroundTransparency = 1
-            }),
-            game:GetService("TweenService"):Create(LogoGlow, tweenInfo, {
-                ImageTransparency = 1,
-                BackgroundTransparency = 1
-            })
-        }
-        
-        -- Play all tweens with slight delay between each
-        for i, tween in ipairs(tweens) do
-            task.spawn(function()
-                task.wait(i * 0.03) -- Staggered delay for cascade effect
-                tween:Play()
-            end)
-        end
-        
-        -- Wait for main tween to complete
-        mainTween.Completed:Wait()
-        MainFrame.Visible = false
-    end)
-    
-    -- Show compact frame with fade in animation
-    CompactFrame.Visible = true
-    CompactFrame.BackgroundTransparency = 1
-    CompactStatusLabel.TextTransparency = 1
-    CompactLogo.ImageTransparency = 1
-    CompactShadow.ImageTransparency = 1
-    CompactLogoGlow.ImageTransparency = 1
-    
-    -- Create fade in animation for compact mode
-    tweenInfo = TweenInfo.new(
-        0.4, -- Duration
-        Enum.EasingStyle.Quad,
-        Enum.EasingDirection.Out
-    )
-    
-    pcall(function()
-        -- Fade in compact elements with proper property types
-        game:GetService("TweenService"):Create(CompactFrame, tweenInfo, {
-            BackgroundTransparency = 0
-        }):Play()
-        
-        task.spawn(function()
-            task.wait(0.1)
-            game:GetService("TweenService"):Create(CompactStatusLabel, tweenInfo, {
-                TextTransparency = 0
-            }):Play()
-        end)
-        
-        task.spawn(function()
-            task.wait(0.15)
-            game:GetService("TweenService"):Create(CompactLogo, tweenInfo, {
-                ImageTransparency = 0
-            }):Play()
-        end)
-        
-        task.spawn(function()
-            task.wait(0.2)
-            game:GetService("TweenService"):Create(CompactShadow, tweenInfo, {
-                ImageTransparency = 0.4
-            }):Play()
-            
-            game:GetService("TweenService"):Create(CompactLogoGlow, tweenInfo, {
-                ImageTransparency = 0.8
-            }):Play()
-        end)
-    end)
-end
-
--- Function to update compact status with animation
-local function updateCompactStatus(status, color)
-    -- Animate text change
-    local function animateTextChange()
-        for i = 0, 0.8, 0.2 do
-            CompactStatusLabel.TextTransparency = i
-            task.wait(0.01)
-        end
-        
-        CompactStatusLabel.Text = "Status: " .. status
-        CompactStatusLabel.TextColor3 = color or Color3.fromRGB(255, 255, 255)
-        
-        for i = 0.8, 0, -0.2 do
-            CompactStatusLabel.TextTransparency = i
-            task.wait(0.01)
-        end
-    end
-    
-    -- Use pcall to handle any animation errors
     pcall(animateTextChange)
 end
 
--- Make the logo pulse with improved animation
-spawn(function()
-    while task.wait(0.01) do -- Smoother animation with shorter wait time
-        if MainFrame.Visible then
-            -- Use sine wave for smoother pulsing
-            for t = 0, math.pi * 2, 0.05 do
-                if not MainFrame.Visible then break end
-                
-                -- Calculate size using sine wave (smoother transition)
-                local scale = 0.95 + 0.1 * math.sin(t)
-                
-                -- Apply scale with proper centering
-                CenterLogo.Size = UDim2.new(scale, 0, scale, 0)
-                CenterLogo.Position = UDim2.new(0.5 - scale/2, 0, 0.5 - scale/2, 0)
-                
-                -- Scale glow slightly differently for interesting effect
-                local glowScale = 1.5 + 0.2 * math.sin(t + math.pi/4)
-                LogoGlow.Size = UDim2.new(glowScale, 0, glowScale, 0)
-                
-                task.wait(0.01)
-            end
-        end
-    end
-end)
-
--- Add subtle animation to compact logo
-spawn(function()
-    while task.wait(0.01) do
-        if CompactFrame.Visible and not isHovering then
-            -- Subtle rotation animation for compact logo
-            for t = 0, math.pi * 2, 0.03 do
-                if not CompactFrame.Visible or isHovering then break end
-                
-                -- Very subtle movement
-                local offset = 1 + 0.5 * math.sin(t)
-                CompactLogo.Position = UDim2.new(0, 10, 0.5, -12 + offset)
-                
-                -- Subtle glow pulsing
-                local transparency = 0.8 + 0.1 * math.sin(t)
-                CompactLogoGlow.ImageTransparency = transparency
-                
-                task.wait(0.02)
-            end
-        end
-    end
-end)
-
--- ===== LOADER SCRIPT FUNCTIONALITY =====
-
--- Configuration table for easier management
-local config = {
-    universalScript = {
-        enabled = true, -- Enable or disable the universal script
-        name = "AutoKickandRejoin",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AutoKickandRejoin.lua"
-    },
-    timeout = 30, -- Default timeout for game loading
-    progressAnimationDuration = 0.3 -- Duration for progress bar animations
-}
-
--- Table of scripts for different games
-local scripts = {
-    {
-        ids = {116614712661486}, -- Example Game IDs for AriseCrossoverAFK
-        name = "AriseCrossoverAFK",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
-    },
-    {
-        ids = {115110570222234, 18668065416}, -- Example Game IDs for BlueLockRivals
-        name = "BlueLockRivals",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
-    },
-    {
-        ids = {72829404259339}, -- Example Game IDs for AnimeRangerX
-        name = "AnimeRangerX",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
-    },
-}
-
 -- Main function to run the loader with improved error handling
 local function runLoader()
-    -- Initial UI setup
     updateStatusText("Initializing loader...")
     updateProgress(0)
     
@@ -587,44 +398,34 @@ local function runLoader()
     updateStatusText("Checking game ID: " .. currentGame)
     updateProgress(70)
     
-    -- Find matching script with improved error handling
-    local matchedScript = nil
-    
-    pcall(function()
-        for _, script in ipairs(scripts) do
-            for _, id in ipairs(script.ids) do
-                if id == currentGame then
-                    matchedScript = script
-                    break
-                end
-            end
-            if matchedScript then break end
-        end
-    end)
-    
     -- Run map-specific script if found
+    local matchedScript = nil
+    for _, script in ipairs(scripts) do
+        for _, id in ipairs(script.ids) do
+            if id == currentGame then
+                matchedScript = script
+                break
+            end
+        end
+        if matchedScript then break end
+    end
+    
     if matchedScript then
         local mapName = matchedScript.name
         local scriptUrl = matchedScript.url
-        
         updateStatusText("🌐 Found script: " .. mapName)
         updateProgress(80)
-        
-        -- Load and run the map-specific script
         loadAndRunScript(mapName, scriptUrl)
     else
         updateStatusText("🚫 No map-specific script found for this game (ID: " .. currentGame .. ")")
     end
     
-    -- Always run the universal script if enabled
+    -- Always run the universal script
     if config.universalScript.enabled then
         local universalName = config.universalScript.name
         local universalUrl = config.universalScript.url
-        
         updateStatusText("🌐 Running universal script: " .. universalName)
         updateProgress(90)
-        
-        -- Load and run the universal script
         loadAndRunScript(universalName, universalUrl)
     end
     
@@ -659,79 +460,6 @@ local function loadAndRunScript(name, url)
         updateStatusText("✅ Script loaded successfully!")
         updateProgress(100)
     end
-end
-
--- Function to wait for game to load with improved error handling
-local function waitForGameLoaded(timeout)
-    updateStatusText("Waiting for game to load...")
-    updateProgress(5)
-    
-    timeout = timeout or 30 -- Default timeout of 30 seconds
-    local startTime = tick()
-
-    -- Wait until the game is loaded with better error handling
-    if not game:IsLoaded() then
-        local loadingStep = 0
-        repeat
-            if tick() - startTime > timeout then
-                updateStatusText("⏳ Game loading timeout!")
-                updateProgress(10)
-                return false
-            end
-            
-            -- Show different loading messages to indicate progress
-            loadingStep = (loadingStep + 1) % 4
-            local loadingText = "Waiting for game to load"
-            for i = 1, loadingStep do
-                loadingText = loadingText .. "."
-            end
-            updateStatusText(loadingText)
-            
-            updateProgress(10 + (tick() - startTime) / timeout * 20) -- Progress from 10% to 30%
-            task.wait(0.5) -- Shorter wait for more responsive updates
-        until game:IsLoaded()
-    end
-
-    updateStatusText("✅ Game loaded!")
-    updateProgress(30)
-
-    -- Check if important services are loaded with improved visual feedback
-    local services = {
-        "Players",
-        "ReplicatedStorage",
-        "Workspace",
-        "StarterGui",
-        "StarterPack",
-        "Lighting",
-        "TweenService",
-        "ContentProvider",
-        "HttpService",
-        "TeleportService"
-    }
-
-    local totalServices = #services
-    local loadedServices = 0
-    
-    for i, serviceName in ipairs(services) do
-        updateStatusText("Loading service: " .. serviceName)
-        
-        local success, service = pcall(function()
-            return game:GetService(serviceName)
-        end)
-        
-        if success and service then
-            loadedServices = loadedServices + 1
-            updateStatusText("✅ Loaded: " .. serviceName .. " (" .. loadedServices .. "/" .. totalServices .. ")")
-        else
-            updateStatusText("❌ Failed to load: " .. serviceName)
-        end
-        
-        -- Update progress based on loaded services ratio
-        updateProgress(30 + (loadedServices / totalServices) * 30)
-        task.wait(0.1) -- Brief pause for visual feedback
-    end
-
-    return true
 end
 
 -- Function to update status with improved error handling
