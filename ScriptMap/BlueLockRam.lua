@@ -1,481 +1,628 @@
--- ===== BorwonCheck - Enhanced Loader Version 2.1 =====
--- Optimized script loader with beautiful debug system
+-- Configuration Settings
+local config = {
+    low_mode = true,
+    fps_cap = 10,
+    disable_shadows = true,
+    optimize_lighting = true,
+    save_cooldown = 5,
+    max_retries = 3,
+    retry_delay = 2
+}
 
--- ป้องกันการรันซ้ำ
-if _G.BorwonLoaderRunning then
-    warn("BorwonCheck Loader กำลังทำงานอยู่แล้ว! ยกเลิกการรันซ้ำ")
+-- Ensure game is fully loaded before executing
+repeat task.wait() until game:IsLoaded() and game.Players and game.Players.LocalPlayer and game.Players.LocalPlayer.Character
+print("Script Started")
+
+-- Apply Configurations
+setfpscap(config.fps_cap)
+if config.disable_shadows then
+    game:GetService("Lighting").GlobalShadows = false
+end
+if config.optimize_lighting then
+    game:GetService("Lighting").Brightness = 1
+    game:GetService("Lighting").TimeOfDay = "12:00:00"
+end
+
+-- Load RAMAccount Library with fallback
+local RAMAccount
+local success, err = pcall(function()
+    RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
+end)
+if not success then
+    print("[ERROR] Failed to load RAMAccount: " .. tostring(err))
+    RAMAccount = { new = function(name) return { SetAlias = function() end, SetDescription = function() end } end }
+end
+
+local MyAccount
+success, err = pcall(function()
+    MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
+end)
+if not success or not MyAccount then
+    print("[ERROR] Failed to initialize RAMAccount: " .. tostring(err))
     return
 end
-_G.BorwonLoaderRunning = true
 
--- ===== ระบบ Configuration =====
-local config = {
-    -- ตั้งค่าทั่วไป
-    autoReload = true,                -- เปิดใช้งานการโหลดสคริปต์อัตโนมัติหลังจาก rejoin
-    
-    -- ตั้งค่า Debug
-    debugMode = true,                 -- เปิดใช้งานโหมด debug
-    coloredOutput = true,             -- เปิดใช้งานสีในการแสดงผล
-    showTimestamps = true,            -- แสดงเวลาในข้อความ debug
-    maxDebugMessages = 100,           -- จำกัดจำนวนข้อความ debug สูงสุด
-    
-    -- ตั้งค่า Performance
-    checkPlaceIdInterval = 15,        -- ความถี่ในการตรวจสอบ PlaceId (วินาที)
-    periodicReloadInterval = 600,     -- ความถี่ในการรีโหลดตามเวลา (วินาที)
-    memoryCheckInterval = 60,         -- ความถี่ในการตรวจสอบหน่วยความจำ (วินาที)
-    
-    -- ตั้งค่า Universal Script
-    universalScript = {
-        enabled = true,               -- เปิดใช้งาน Universal Script หรือไม่
-        name = "AutoKickandRejoin",   -- ชื่อของ Universal Script
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/other/AutoKickandRejoin.lua" -- ลิงก์ไปยังสคริปต์
-    },
-    
-    -- ตั้งค่าความปลอดภัย
-    safeMode = true,                  -- เปิดใช้งานโหมดปลอดภัย (ป้องกันการขัดแย้งกับสคริปต์อื่น)
-    errorRecovery = true,             -- เปิดใช้งานการกู้คืนจากข้อผิดพลาด
-    memoryLimit = 50                  -- จำกัดการใช้หน่วยความจำ (MB) ก่อนทำความสะอาด
-}
-
--- ===== ระบบจัดการหน่วยความจำ =====
-local MemoryManager = {
-    gcLimit = config.memoryLimit * 1024 * 1024, -- แปลงเป็น bytes
-    lastCleanup = tick(),
-    cleanupInterval = config.memoryCheckInterval
-}
-
-function MemoryManager:checkMemory()
-    local currentMemory = gcinfo() * 1024 -- แปลงเป็น bytes
-    if currentMemory > self.gcLimit then
-        self:cleanup()
-    end
-end
-
-function MemoryManager:cleanup()
-    if tick() - self.lastCleanup < self.cleanupInterval then return end
-    
-    self.lastCleanup = tick()
-    
-    -- บันทึกข้อมูลสำคัญก่อนทำความสะอาด
-    local importantData = {
-        -- เก็บข้อมูลสำคัญที่ต้องการเก็บไว้
-    }
-    
-    -- ทำความสะอาดหน่วยความจำ
-    collectgarbage("collect")
-    
-    -- คืนค่าข้อมูลสำคัญ
-    -- (ทำตามความเหมาะสม)
-    
-    if config.debugMode then
-        print("🧹 ทำความสะอาดหน่วยความจำแล้ว - ใช้หน่วยความจำปัจจุบัน: " .. math.floor(gcinfo() / 1024) .. " MB")
-    end
-end
-
--- ตั้งเวลาตรวจสอบหน่วยความจำเป็นระยะ
-task.spawn(function()
-    while true do
-        task.wait(config.memoryCheckInterval)
-        MemoryManager:checkMemory()
-    end
-end)
-
--- ===== ระบบ Debug ที่สวยงามและมีประสิทธิภาพ =====
-local DebugSystem = {
-    messageCount = 0
-}
-
--- สีสำหรับข้อความประเภทต่างๆ (ใช้ได้กับบางเอ็กซีคิวเตอร์เท่านั้น)
-DebugSystem.Colors = {
-    reset = "\27[0m",
-    info = "\27[1;36m",      -- สีฟ้าสว่าง
-    success = "\27[1;32m",   -- สีเขียวสว่าง
-    warning = "\27[1;33m",   -- สีเหลืองสว่าง
-    error = "\27[1;31m",     -- สีแดงสว่าง
-    debug = "\27[1;35m",     -- สีม่วงสว่าง
-    system = "\27[1;37m",    -- สีขาวสว่าง
-    highlight = "\27[1;34m"  -- สีน้ำเงินสว่าง
-}
-
--- ไอคอนสำหรับข้อความประเภทต่างๆ
-DebugSystem.Icons = {
-    info = "ℹ️",
-    success = "✅",
-    warning = "⚠️",
-    error = "❌",
-    debug = "🔍",
-    system = "⚙️",
-    highlight = "🔆"
-}
-
--- ฟังก์ชันสำหรับแสดงข้อความ debug ที่มีประสิทธิภาพ
-function DebugSystem:log(type, message, forceShow)
-    -- ตรวจสอบเงื่อนไขก่อนแสดงข้อความ
-    if not config.debugMode and not forceShow then return end
-    
-    -- จำกัดจำนวนข้อความ debug
-    self.messageCount = self.messageCount + 1
-    if self.messageCount > config.maxDebugMessages and not forceShow then
-        if self.messageCount == config.maxDebugMessages + 1 then
-            print("จำกัดจำนวนข้อความ debug แล้ว - ข้อความต่อไปจะไม่แสดงเว้นแต่จะใช้ forceShow")
-        end
-        return
-    end
-    
-    local icon = self.Icons[type] or "📝"
-    local color = config.coloredOutput and self.Colors[type] or ""
-    local resetColor = config.coloredOutput and self.Colors.reset or ""
-    local timestamp = config.showTimestamps and os.date("[%H:%M:%S] ") or ""
-    
-    -- สร้างข้อความที่จะแสดง
-    local formattedMessage = string.format("%s%s%s %s%s", 
-        color, 
-        timestamp, 
-        icon, 
-        message, 
-        resetColor
-    )
-    
-    -- แสดงข้อความตามประเภท
-    if type == "error" then
-        warn(formattedMessage)
-    elseif type == "warning" then
-        warn(formattedMessage)
+-- Function to format large numbers
+local function FormatCoins(value)
+    if value >= 1e6 then
+        return string.format("%.1fM", value / 1e6)
+    elseif value >= 1e3 then
+        return string.format("%.1fk", value / 1e3)
     else
-        print(formattedMessage)
+        return tostring(value)
     end
 end
 
--- ฟังก์ชันสำหรับแสดงข้อความแบบสวยงาม
-function DebugSystem:showBeautifulMessage(title, message, type)
-    type = type or "info"
-    
-    local color = config.coloredOutput and self.Colors[type] or ""
-    local resetColor = config.coloredOutput and self.Colors.reset or ""
-    local icon = self.Icons[type] or "📝"
-    
-    -- สร้างเส้นคั่น
-    local separator = string.rep("=", 50)
-    
-    -- แสดงข้อความ
-    print(color .. separator .. resetColor)
-    print(color .. icon .. " " .. title .. resetColor)
-    print(color .. message .. resetColor)
-    print(color .. separator .. resetColor)
+-- Logging System
+local function log(type, message)
+    local timeStr = os.date("%H:%M:%S")
+    if type == "info" then
+        print("["..timeStr.."] ℹ️ " .. message)
+    elseif type == "success" then
+        print("["..timeStr.."] ✅ " .. message)
+    elseif type == "warning" then
+        warn("["..timeStr.."] ⚠️ " .. message)
+    elseif type == "error" then
+        warn("["..timeStr.."] ❌ " .. message)
+    end
 end
 
--- Function to wait for game to load with optimized checks
-local function waitForGameLoaded(timeout)
-    timeout = timeout or 15 -- Default timeout of 15 seconds
-    local startTime = tick()
+log("info", "Script Started")
 
-    -- Wait until the game is loaded
-    if not game:IsLoaded() then
-        DebugSystem:log("info", "รอให้เกมโหลดเสร็จ...")
-        repeat
-            if tick() - startTime > timeout then
-                DebugSystem:log("error", "เกมโหลดไม่เสร็จภายในเวลาที่กำหนด!", true)
-                return false
+-- Style and Flow Validation
+local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser", "King"}
+local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
+local styleMap, flowMap = {}, {}
+for _, s in ipairs(validStyles) do styleMap[s] = true end
+for _, f in ipairs(validFlows) do flowMap[f] = true end
+
+local function FormatStyle(style)
+    return styleMap[style] and style or "none"
+end
+
+local function FormatFlow(flow)
+    return flowMap[flow] and flow or "none"
+end
+
+-- File paths
+local folderName = "Idcheck/PlayerData"
+local fileName = folderName .. "/player_data.txt"
+local backupFileName = folderName .. "/player_data_backup.txt"
+local tempFileName = folderName .. "/player_data_temp.txt"
+local archiveFileName = folderName .. "/player_data_archive.txt"
+
+-- Check file writing capability - AWP specific
+local canWriteFile = pcall(function() writefile("test.txt", "test") end)
+if not canWriteFile then
+    print("[WARNING] This Executor does not support file writing. File saving will be skipped.")
+end
+
+-- Ensure folder exists - AWP compatible
+if canWriteFile then
+    pcall(function()
+        if not isfolder(folderName) then
+            makefolder(folderName)
+            log("success", "Folder created: " .. folderName)
+        end
+    end)
+end
+
+-- Improved file operations for AWP
+local function LoadPlayerData(filePath)
+    if not canWriteFile then return {} end
+    
+    filePath = filePath or fileName
+    
+    local data = {}
+    local fileContent = ""
+    
+    -- Try to read the file
+    local success, result = pcall(function()
+        if isfile(filePath) then
+            return readfile(filePath)
+        end
+        return ""
+    end)
+    
+    if success and result and result ~= "" then
+        fileContent = result
+    else
+        log("warning", "Failed to read file: " .. filePath)
+        return {}
+    end
+    
+    -- Process file content
+    if fileContent and fileContent ~= "" then
+        -- Split the content by newlines
+        local lines = {}
+        for line in string.gmatch(fileContent, "[^\r\n]+") do
+            if line and line ~= "" then
+                table.insert(lines, line)
             end
-            task.wait(0.2) -- Reduced wait time for faster checks
-        until game:IsLoaded()
+        end
+        
+        for _, line in ipairs(lines) do
+            if line and line ~= "" then
+                local parts = {}
+                for part in string.gmatch(line, "[^:]+") do
+                    table.insert(parts, part)
+                end
+                
+                if #parts >= 4 then
+                    local username = parts[1]
+                    local style = parts[2]
+                    local flow = parts[3]
+                    local level = tonumber(parts[4]) or 1
+                    
+                    if username and username ~= "" then
+                        data[username] = {
+                            style = style ~= "" and style or "none",
+                            flow = flow ~= "" and flow or "none",
+                            level = level
+                        }
+                    end
+                end
+            end
+        end
+        
+        local count = 0
+        for _ in pairs(data) do count = count + 1 end
+        log("info", "Loaded " .. count .. " players from " .. filePath)
+    else
+        log("warning", "File is empty: " .. filePath)
     end
+    
+    return data
+end
 
-    -- Check if important services are loaded
-    local services = {
-        "Players",
-        "ReplicatedStorage",
-        "Workspace",
-        "StarterGui",
-        "TweenService"
+-- Create comprehensive backup system
+local function BackupPlayerData()
+    if not canWriteFile then return end
+    
+    -- Create standard backup
+    pcall(function()
+        if isfile(fileName) then
+            writefile(backupFileName, readfile(fileName))
+            log("success", "Standard backup created")
+        end
+    end)
+    
+    -- Create timestamped archive backup once per hour
+    pcall(function()
+        if isfile(fileName) then
+            local currentHour = os.date("%Y-%m-%d_%H")
+            local archiveFile = folderName .. "/archive_" .. currentHour .. ".txt"
+            
+            -- Only create archive if it doesn't exist for this hour
+            if not isfile(archiveFile) then
+                writefile(archiveFile, readfile(fileName))
+                log("success", "Archive backup created: " .. archiveFile)
+            end
+        end
+    end)
+end
+
+-- Improved save function with verification
+local function SavePlayerData(username, style, flow, level)
+    if not canWriteFile then
+        log("warning", "File writing not supported, skipping save.")
+        return false
+    end
+    
+    if not username or username == "" then
+        log("error", "Invalid username, skipping save.")
+        return false
+    end
+    
+    -- Create backup first
+    BackupPlayerData()
+    
+    -- Load existing data
+    local existingData = LoadPlayerData()
+    local initialCount = 0
+    for _ in pairs(existingData) do initialCount = initialCount + 1 end
+    
+    -- Add or update the player entry
+    existingData[username] = { 
+        style = style or "none", 
+        flow = flow or "none", 
+        level = tonumber(level) or 1 
     }
-
-    for _, serviceName in ipairs(services) do
-        pcall(function()
-            game:GetService(serviceName)
-        end)
-        task.wait(0.05) -- Reduced delay for service checks
+    
+    -- Count entries after update
+    local updatedCount = 0
+    for _ in pairs(existingData) do updatedCount = updatedCount + 1 end
+    
+    -- Prepare data for saving
+    local lines = {}
+    for uname, data in pairs(existingData) do
+        if uname and uname ~= "" then
+            table.insert(lines, string.format("%s:%s:%s:%d", 
+                uname, 
+                data.style or "none", 
+                data.flow or "none", 
+                tonumber(data.level) or 1
+            ))
+        end
     end
-
-    DebugSystem:log("success", "เกมโหลดเสร็จแล้ว", true)
+    
+    local fileContent = table.concat(lines, "\n")
+    
+    -- Save to temporary file first
+    local tempSuccess = pcall(function()
+        writefile(tempFileName, fileContent)
+    end)
+    
+    if not tempSuccess then
+        log("error", "Failed to write temporary file")
+        return false
+    end
+    
+    -- Verify temporary file
+    local tempData = LoadPlayerData(tempFileName)
+    local tempCount = 0
+    for _ in pairs(tempData) do tempCount = tempCount + 1 end
+    
+    if tempCount < updatedCount then
+        log("error", "Temporary file verification failed: Expected " .. updatedCount .. " entries, got " .. tempCount)
+        return false
+    end
+    
+    -- Move temporary file to main file
+    local moveSuccess = pcall(function()
+        writefile(fileName, fileContent)
+    end)
+    
+    if not moveSuccess then
+        log("error", "Failed to move temporary file to main file")
+        return false
+    end
+    
+    -- Final verification
+    local finalData = LoadPlayerData()
+    local finalCount = 0
+    for _ in pairs(finalData) do finalCount = finalCount + 1 end
+    
+    if finalCount < updatedCount then
+        log("error", "Final verification failed: Expected " .. updatedCount .. " entries, got " .. finalCount)
+        
+        -- Try to restore from backup
+        pcall(function()
+            if isfile(backupFileName) then
+                writefile(fileName, readfile(backupFileName))
+                log("warning", "Restored from backup due to verification failure")
+            end
+        end)
+        
+        return false
+    end
+    
+    log("success", "Data saved and verified: " .. finalCount .. " entries (Added: " .. (updatedCount - initialCount) .. ")")
     return true
 end
 
--- Function to load and run a script with error handling
-local function loadAndRunScript(name, url)
-    DebugSystem:log("info", "กำลังโหลดสคริปต์: " .. name)
-    local executor = loadstring or load
-    if not executor then
-        DebugSystem:log("error", "ไม่พบฟังก์ชัน loadstring หรือ load", true)
-        return false
-    end
+-- Account Management
+local function WaitForDataToLoad()
+    local player = game:GetService("Players").LocalPlayer
+    local stats, pStats
 
-    local success, err = pcall(function()
-        local response = ""
-        
-        -- ลองโหลดจาก URL หลัก
-        local mainSuccess, mainResponse = pcall(function()
-            return game:HttpGet(url)
-        end)
-        
-        if mainSuccess and mainResponse and mainResponse ~= "" then
-            response = mainResponse
-        else
-            error("ไม่สามารถโหลดสคริปต์จาก URL ได้")
-        end
-        
-        if not response or response == "" then
-            error("ไม่พบข้อมูลสคริปต์หรือข้อมูลว่างเปล่า")
-        end
-        
-        -- ใช้ pcall เพื่อป้องกันข้อผิดพลาดจากการรันสคริปต์
-        local execSuccess, execErr = pcall(function()
-            executor(response)()
-        end)
-        
-        if not execSuccess then
-            error("เกิดข้อผิดพลาดในการรันสคริปต์: " .. tostring(execErr))
-        end
-    end)
-
-    if not success then
-        DebugSystem:log("error", "โหลดสคริปต์ล้มเหลว: " .. tostring(err), true)
-        return false
-    else
-        DebugSystem:log("success", "โหลดสคริปต์สำเร็จ: " .. name, true)
-        return true
-    end
-end
-
--- Table of scripts for different games
-local scripts = {
-    {
-        ids = {116614712661486}, -- Example Game IDs for AriseCrossoverAFK
-        name = "AriseCrossoverAFK",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AriseRam.lua"
-    },
-    {
-        ids = {18668065416}, -- Example Game IDs for BlueLockRivals
-        name = "BlueLockRivals",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BlueLockRam.lua"
-    },
-    {
-        ids = {72829404259339}, -- Example Game IDs for AnimeRangerX
-        name = "AnimeRangerX",
-        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
-    },
-}
-
--- ตัวแปรเก็บสถานะการทำงาน
-local isRunning = false
-local lastRunTime = 0
-
--- Main function to run the loader with error recovery
-local function runLoader()
-    -- ป้องกันการรันซ้ำในเวลาใกล้เคียงกัน
-    if isRunning then
-        DebugSystem:log("debug", "Loader กำลังทำงานอยู่แล้ว ข้ามการรันซ้ำ")
-        return
-    end
-    
-    -- ตรวจสอบเวลาที่รันครั้งล่าสุด
-    if tick() - lastRunTime < 5 then
-        DebugSystem:log("debug", "รันครั้งล่าสุดเมื่อไม่นานมานี้ ข้ามการรันซ้ำ")
-        return
-    end
-    
-    -- ตั้งค่าสถานะการทำงาน
-    isRunning = true
-    lastRunTime = tick()
-    
-    -- ทำความสะอาดหน่วยความจำก่อนรันสคริปต์
-    MemoryManager:checkMemory()
-    
-    -- ใช้ pcall เพื่อป้องกันข้อผิดพลาดที่อาจทำให้ loader หยุดทำงาน
-    local success, err = pcall(function()
-        -- Wait for game to load
-        local gameLoaded = waitForGameLoaded(15)
-        if not gameLoaded then
-            DebugSystem:log("error", "เกมโหลดไม่เสร็จภายในเวลาที่กำหนด!", true)
-            return
-        end
-
-        -- Check current game ID
-        local currentGame = game.PlaceId
-        DebugSystem:log("info", "ตรวจสอบ ID เกม: " .. currentGame)
-
-        -- Run map-specific script if found
-        local matchedScript = nil
-        if type(scripts) == "table" then -- Ensure 'scripts' is a valid table
-            for _, script in ipairs(scripts) do
-                for _, id in ipairs(script.ids) do
-                    if id == currentGame then
-                        matchedScript = script
-                        break
-                    end
-                end
-                if matchedScript then break end
-            end
-        else
-            DebugSystem:log("error", "'scripts' ไม่ใช่ตารางที่ถูกต้อง", true)
-        end
-
-        local mapName = "Unknown Map"
-        if matchedScript then
-            mapName = matchedScript.name
-            local scriptUrl = matchedScript.url
-            DebugSystem:log("success", "พบสคริปต์สำหรับแมพ: " .. mapName, true)
-            loadAndRunScript(mapName, scriptUrl)
-        else
-            DebugSystem:log("warning", "ไม่พบสคริปต์สำหรับเกมนี้ (ID: " .. currentGame .. ")", true)
-        end
-
-        -- Always run the universal script
-        if config and config.universalScript and config.universalScript.enabled then
-            local universalName = config.universalScript.name
-            local universalUrl = config.universalScript.url
-            DebugSystem:log("info", "กำลังรันสคริปต์ Universal: " .. universalName .. " สำหรับแมพ: " .. mapName)
-            loadAndRunScript(universalName, universalUrl)
-        else
-            DebugSystem:log("error", "'config' หรือ 'config.universalScript' ไม่ได้กำหนดค่าอย่างถูกต้อง", true)
-        end
-    end)
-    
-    -- จัดการกับข้อผิดพลาดที่อาจเกิดขึ้น
-    if not success then
-        DebugSystem:log("error", "เกิดข้อผิดพลาดในการรัน Loader: " .. tostring(err), true)
-    end
-    
-    -- รีเซ็ตสถานะการทำงาน
-    isRunning = false
-end
-
--- ===== ระบบตรวจจับการเข้าเกมใหม่ =====
-
--- ตัวแปรเก็บสถานะว่าสคริปต์ได้ทำงานแล้วหรือยัง
-local hasRunInitially = false
-
--- ฟังก์ชันสำหรับตรวจสอบเมื่อเข้าเกมใหม่
-local function setupRejoinDetection()
-    -- ตรวจจับเมื่อ LocalPlayer เข้าเกม
-    game:GetService("Players").PlayerAdded:Connect(function(player)
-        if player == game:GetService("Players").LocalPlayer then
-            DebugSystem:log("highlight", "LocalPlayer เข้าเกมใหม่ - เตรียมรันสคริปต์อีกครั้ง", true)
-            -- รอให้เกมโหลดเสร็จก่อนรันสคริปต์
-            task.wait(5)
-            runLoader()
-        end
-    end)
-    
-    -- ตรวจจับเมื่อ Character เกิดใหม่ (อาจเกิดจากการ respawn หรือ rejoin)
-    if game:GetService("Players").LocalPlayer then
-        game:GetService("Players").LocalPlayer.CharacterAdded:Connect(function(character)
-            DebugSystem:log("debug", "Character เกิดใหม่ - ตรวจสอบว่าเป็นการ rejoin หรือไม่")
-            -- ตรวจสอบว่าเป็นการ rejoin จริงๆ หรือแค่ respawn ธรรมดา
-            task.wait(2)
-            if not hasRunInitially then
-                DebugSystem:log("info", "รันสคริปต์ครั้งแรกหลังจาก Character เกิด")
-                runLoader()
-                hasRunInitially = true
-            else
-                -- ใช้ตัวแปรเพื่อป้องกันการรันซ้ำเมื่อเพิ่ง respawn ธรรมดา
-                local lastRun = tick()
-                task.wait(3) -- รอสักครู่เพื่อให้แน่ใจว่าเป็นการ rejoin จริงๆ
-                if tick() - lastRun >= 3 then
-                    DebugSystem:log("highlight", "ตรวจพบการ rejoin - รันสคริปต์อีกครั้ง", true)
-                    runLoader()
-                end
-            end
-        end)
-    end
-    
-    -- ตรวจจับเมื่อเกมโหลดเสร็จ (สำหรับกรณีที่สคริปต์ถูกรันก่อนเกมโหลดเสร็จ)
-    if not game:IsLoaded() then
-        game.Loaded:Connect(function()
-            DebugSystem:log("success", "เกมโหลดเสร็จแล้ว - รันสคริปต์", true)
-            task.wait(5)
-            runLoader()
-        end)
-    end
-    
-    -- ตรวจจับการเปลี่ยนแปลง PlaceId (เมื่อเข้าแมพใหม่)
-    local currentPlaceId = game.PlaceId
-    task.spawn(function()
-        while true do
-            task.wait(config.checkPlaceIdInterval)
-            if game.PlaceId ~= currentPlaceId then
-                DebugSystem:log("highlight", "ตรวจพบการเปลี่ยนแมพ - รันสคริปต์อีกครั้ง", true)
-                currentPlaceId = game.PlaceId
-                runLoader()
-            end
-        end
-    end)
-    
-    -- ตรวจจับเมื่อ TeleportService ทำงาน
-    game:GetService("TeleportService").TeleportInitFailed:Connect(function()
-        DebugSystem:log("warning", "การเทเลพอร์ตล้มเหลว - ลองรันสคริปต์อีกครั้ง", true)
+    -- Initial wait with retry
+    for i = 1, 3 do
+        stats = player:WaitForChild("ProfileStats", 10)
+        pStats = player:WaitForChild("PlayerStats", 10)
+        if stats and pStats then break end
+        log("warning", "Stats not loaded, retrying (" .. i .. "/3)...")
         task.wait(5)
-        runLoader()
-    end)
+    end
+
+    if not (stats and pStats) then
+        log("error", "Failed to load ProfileStats or PlayerStats after retries.")
+        return false
+    end
+
+    local money, level, style, flow
+    for i = 1, 3 do
+        money = stats:WaitForChild("Money", 5)
+        level = stats:WaitForChild("Level", 5)
+        style = pStats:WaitForChild("Style", 5)
+        flow = pStats:WaitForChild("Flow", 5)
+        if money and level and style and flow then break end
+        log("warning", "Sub-stats not loaded, retrying (" .. i .. "/3)...")
+        task.wait(3)
+    end
+
+    if not (money and level and style and flow) then
+        log("error", "Failed to load all stats after retries.")
+        return false
+    end
+
+    if money.Value < 0 or level.Value <= 0 then
+        log("warning", "Initial data invalid, waiting for valid values...")
+        task.wait(5)
+        if money.Value < 0 or level.Value <= 0 then
+            log("error", "Data still invalid after wait.")
+            return false
+        end
+    end
+
+    log("success", "All data loaded successfully.")
+    return true
 end
 
--- ตั้งค่าการตรวจจับ rejoin
-setupRejoinDetection()
+-- Improved debounce system
+local isSaving = false
+local lastSaveTime = 0
+local saveCount = 0
+local saveQueue = {}
 
--- แสดงข้อความเริ่มต้นสวยๆ
-DebugSystem:showBeautifulMessage(
-    "BorwonCheck Loader v2.1",
-    "สคริปต์โหลดเดอร์ที่มีระบบ Debug สวยงาม\nพร้อมสำหรับการ rejoin และการเปลี่ยนแมพ",
-    "highlight"
-)
-
--- รันสคริปต์ครั้งแรก
-if not hasRunInitially then
-    DebugSystem:log("system", "รันสคริปต์ครั้งแรก", true)
-    runLoader()
-    hasRunInitially = true
-end
-
--- เพิ่มการตรวจสอบเพื่อรันสคริปต์อีกครั้งหลังจากเวลาผ่านไป (เผื่อกรณีที่การตรวจจับอื่นๆ ล้มเหลว)
-task.spawn(function()
-    while config.autoReload do
-        task.wait(config.periodicReloadInterval) -- ตรวจสอบตามเวลาที่กำหนดในการตั้งค่า
-        
-        -- ตรวจสอบว่าจำเป็นต้องรันใหม่หรือไม่
-        local needsReload = false
-        pcall(function()
-            -- ตรวจสอบว่าสคริปต์ยังทำงานอยู่หรือไม่
-            if tick() - lastRunTime > 300 then -- ถ้าไม่ได้รันมานานกว่า 5 นาที
-                needsReload = true
-            end
+-- Process save queue
+local function ProcessSaveQueue()
+    if isSaving or #saveQueue == 0 then return end
+    
+    isSaving = true
+    
+    -- Get the latest save request
+    local saveData = saveQueue[#saveQueue]
+    saveQueue = {} -- Clear queue
+    
+    -- Execute the save
+    local saveSuccess = SavePlayerData(
+        saveData.username,
+        saveData.style,
+        saveData.flow,
+        saveData.level
+    )
+    
+    if saveSuccess then
+        lastSaveTime = os.time()
+        saveCount = saveCount + 1
+        log("success", "Save #" .. saveCount .. " completed")
+    else
+        -- If save failed, try to requeue
+        task.delay(2, function()
+            table.insert(saveQueue, saveData)
+            ProcessSaveQueue()
         end)
+    end
+    
+    isSaving = false
+    
+    -- Process next item if any were added during this save
+    if #saveQueue > 0 then
+        task.delay(0.5, ProcessSaveQueue)
+    end
+end
+
+-- Improved save function
+local initialRun = true
+local function SaveAndSendData()
+    -- Don't save too frequently
+    if os.time() - lastSaveTime < config.save_cooldown and not initialRun then
+        return
+    end
+
+    if initialRun then
+        log("info", "Initial run after join/rejoin, waiting for data stabilization...")
+        task.wait(10)
+        initialRun = false
+    end
+
+    local player = game:GetService("Players").LocalPlayer
+    if not WaitForDataToLoad() then
+        return
+    end
+
+    local stats = player.ProfileStats
+    local pStats = player.PlayerStats
+
+    local money = stats.Money.Value
+    local level = stats.Level.Value
+    local style = FormatStyle(pStats.Style.Value)
+    local flow = FormatFlow(pStats.Flow.Value)
+
+    if money < 0 or level <= 0 then
+        log("warning", "Invalid data detected (Money: " .. money .. ", Level: " .. level .. "), skipping save.")
+        return
+    end
+
+    -- Queue the save operation
+    table.insert(saveQueue, {
+        username = player.Name,
+        style = style,
+        flow = flow,
+        level = level
+    })
+    
+    -- Process the queue
+    task.spawn(ProcessSaveQueue)
+
+    -- Send data to RAM
+    local sendSuccess, sendErr = pcall(function()
+        local alias = string.format("Money: %s Level: %d", FormatCoins(money), level)
+        local description = string.format("Style: \"%s\" Flow: \"%s\"", style == "none" and "" or style, flow == "none" and "" or flow)
+        MyAccount:SetAlias(alias)
+        MyAccount:SetDescription(description)
+    end)
+    
+    if not sendSuccess then
+        log("error", "Error sending data: " .. tostring(sendErr))
+    else
+        log("success", "Data sent to RAM successfully.")
+    end
+end
+
+-- Periodic data verification
+task.spawn(function()
+    while true do
+        task.wait(300) -- Check every 5 minutes
         
-        if needsReload then
-            DebugSystem:log("debug", "ตรวจสอบตามเวลา - รันสคริปต์อีกครั้งเพื่อความแน่ใจ")
-            runLoader()
+        if canWriteFile and isfile(fileName) then
+            local data = LoadPlayerData()
+            local count = 0
+            for _ in pairs(data) do count = count + 1 end
+            
+            log("info", "Periodic verification: " .. count .. " player records")
+            
+            -- If count is suspiciously low, try to recover
+            if count < 40 and isfile(backupFileName) then
+                local backupData = LoadPlayerData(backupFileName)
+                local backupCount = 0
+                for _ in pairs(backupData) do backupCount = backupCount + 1 end
+                
+                if backupCount > count then
+                    log("warning", "Data loss detected! Backup has " .. backupCount .. " records vs current " .. count)
+                    
+                    -- Restore from backup
+                    pcall(function()
+                        writefile(fileName, readfile(backupFileName))
+                        log("success", "Restored from backup due to data loss")
+                    end)
+                end
+            end
         end
     end
 end)
 
--- ทำความสะอาดเมื่อสคริปต์ถูกยกเลิก
-local function cleanup()
-    DebugSystem:log("system", "กำลังทำความสะอาดก่อนยกเลิกสคริปต์", true)
-    
-    -- ทำความสะอาดหน่วยความจำ
-    MemoryManager:cleanup()
-    
-    -- รีเซ็ตตัวแปรสถานะ
-    _G.BorwonLoaderRunning = false
-end
-
--- ตั้งค่าการทำความสะอาดเมื่อสคริปต์ถูกยกเลิก
-task.spawn(function()
-    game:GetService("Players").PlayerRemoving:Connect(function(player)
-        if player == game:GetService("Players").LocalPlayer then
-            cleanup()
-        end
-    end)
+-- Force save on player leaving
+game.Players.PlayerRemoving:Connect(function(player)
+    if player == game.Players.LocalPlayer then
+        log("info", "Player is leaving, saving final data...")
+        -- Force immediate save
+        isSaving = false
+        lastSaveTime = 0
+        SaveAndSendData()
+        task.wait(1) -- Give time for save to complete
+    end
 end)
 
--- แสดงข้อความเมื่อสคริปต์เริ่มทำงานเสร็จสมบูรณ์
-DebugSystem:log("success", "BorwonCheck Loader ทำงานเสร็จสมบูรณ์", true)
+-- Initialize with event listeners
+task.spawn(function()
+    local player = game:GetService("Players").LocalPlayer
+    local stats = player:WaitForChild("ProfileStats", 10)
+    local pStats = player:WaitForChild("PlayerStats", 10)
+
+    if stats and pStats then
+        -- Initial save
+        SaveAndSendData()
+
+        -- Set up change listeners with throttling
+        local function setupChangeListener(instance, property)
+            local lastChange = 0
+            instance[property].Changed:Connect(function()
+                if os.time() - lastChange > 1 then -- Throttle to prevent spam
+                    lastChange = os.time()
+                    SaveAndSendData()
+                end
+            end)
+        end
+
+        task.wait(10) -- Initial delay
+        setupChangeListener(stats, "Money")
+        setupChangeListener(stats, "Level")
+        setupChangeListener(pStats, "Style")
+        setupChangeListener(pStats, "Flow")
+        
+        -- Periodic save as a fallback
+        task.spawn(function()
+            while true do
+                task.wait(60) -- Save every minute as a backup
+                SaveAndSendData()
+            end
+        end)
+    else
+        log("error", "Failed to set up event listeners due to missing stats.")
+    end
+end)
+
+-- Auto-Kick Functionality
+local function CheckAndKickSelf()
+    local player = game:GetService("Players").LocalPlayer
+    local pStats = player:FindFirstChild("PlayerStats")
+    if not pStats then return end
+
+    local style = pStats:FindFirstChild("Style") and pStats.Style.Value or "none"
+    local flow = pStats:FindFirstChild("Flow") and pStats.Flow.Value or "none"
+
+    local isValidStyle = styleMap[style] or false
+    local isValidFlow = flowMap[flow] or false
+
+    if isValidStyle and isValidFlow then
+        log("warning", "Self-kick triggered: Style = " .. style .. ", Flow = " .. flow)
+        task.spawn(function()
+            SaveAndSendData()
+            task.wait(1)
+            player:Kick("You have been kicked due to matching Style & Flow.")
+        end)
+    end
+end
+
+task.spawn(function()
+    log("info", "Starting auto-kick monitoring")
+    task.wait(10)
+
+    local success, err = pcall(function()
+        CheckAndKickSelf()
+    end)
+
+    if not success then
+        log("error", "Error during initial check: " .. tostring(err))
+    end
+
+    while true do
+        task.wait(10)
+        local success, err = pcall(function()
+            CheckAndKickSelf()
+        end)
+        if not success then
+            log("error", "Error during periodic check: " .. tostring(err))
+        end
+    end
+end)
+
+-- Display stats periodically
+task.spawn(function()
+    while true do
+        task.wait(30)
+        pcall(function()
+            local player = game:GetService("Players").LocalPlayer
+            local stats = player:FindFirstChild("ProfileStats")
+            local pStats = player:FindFirstChild("PlayerStats")
+            
+            if stats and pStats then
+                local money = stats:FindFirstChild("Money") and stats.Money.Value or 0
+                local level = stats:FindFirstChild("Level") and stats.Level.Value or 0
+                local style = pStats:FindFirstChild("Style") and pStats.Style.Value or "none"
+                local flow = pStats:FindFirstChild("Flow") and pStats.Flow.Value or "none"
+                
+                print("=== Player Stats ===")
+                print("Money: " .. FormatCoins(money))
+                print("Level: " .. level)
+                print("Style: " .. style)
+                print("Flow: " .. flow)
+                print("Saves: " .. saveCount)
+                
+                -- Show data count
+                if canWriteFile and isfile(fileName) then
+                    local data = LoadPlayerData()
+                    local count = 0
+                    for _ in pairs(data) do count = count + 1 end
+                    print("Saved Players: " .. count)
+                end
+                
+                print("==================")
+            end
+        end)
+    end
+end)
+
+-- Perform initial data load to verify file system
+task.spawn(function()
+    if canWriteFile then
+        local initialData = LoadPlayerData()
+        local count = 0
+        for _ in pairs(initialData) do count = count + 1 end
+        log("info", "Initial data loaded with " .. count .. " player records")
+    end
+end)
+
+log("success", "Script fully initialized")
