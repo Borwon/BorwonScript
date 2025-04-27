@@ -5,25 +5,26 @@ local config = {
     disable_shadows = true,
     optimize_lighting = true,
     save_cooldown = 5,
-    max_retries = 5,  -- เพิ่มจำนวนครั้งในการ retry
-    retry_delay = 2,  -- เวลาเริ่มต้นในการ retry
+    max_retries = 5,
+    retry_delay = 2,
     
-    -- การตั้งค่าใหม่
+    -- ปิดการตรวจสอบข้อมูลทั้งหมด
     data_validation = {
-        enabled = true,           -- เปิดใช้งานการตรวจสอบข้อมูล
-        min_level = 1,            -- ระดับต่ำสุดที่ยอมรับได้
-        require_valid_style = false, -- ไม่จำเป็นต้องมี style ที่ถูกต้อง
-        require_valid_flow = false,  -- ไม่จำเป็นต้องมี flow ที่ถูกต้อง
-        retry_invalid_data = true,  -- ลองใหม่เมื่อข้อมูลไม่ถูกต้อง
-        max_validation_retries = 3  -- จำนวนครั้งสูงสุดในการลองตรวจสอบข้อมูล
+        enabled = false,  -- ปิดการตรวจสอบข้อมูลทั้งหมด
+        min_level = 1,
+        require_valid_style = false,
+        require_valid_flow = false,
+        valid_none_value = true,
+        retry_invalid_data = true,
+        max_validation_retries = 3
     },
     
     smart_retry = {
-        enabled = true,               -- เปิดใช้งานระบบ retry ที่ฉลาดขึ้น
-        use_exponential_backoff = true, -- ใช้การถอยหลังแบบ exponential
-        max_backoff = 30,             -- เวลาสูงสุดในการถอยหลัง (วินาที)
-        jitter = true,                -- เพิ่มความสุ่มในการถอยหลัง
-        success_reset_delay = true    -- รีเซ็ตเวลาถอยหลังเมื่อสำเร็จ
+        enabled = true,
+        use_exponential_backoff = true,
+        max_backoff = 30,
+        jitter = true,
+        success_reset_delay = true
     }
 }
 
@@ -98,20 +99,29 @@ local styleMap, flowMap = {}, {}
 for _, s in ipairs(validStyles) do styleMap[s] = true end
 for _, f in ipairs(validFlows) do flowMap[f] = true end
 
--- ระบบตรวจสอบข้อมูลที่ดีขึ้น
+-- ระบบตรวจสอบข้อมูลที่ดีขึ้น (แต่ปิดการใช้งาน)
 local function ValidatePlayerData(username, style, flow, level)
+    -- ปิดการตรวจสอบข้อมูลทั้งหมด
+    if not config.data_validation.enabled then
+        return true, "Data validation disabled"
+    end
+    
     if not username or username == "" then
         return false, "Invalid username"
     end
     
-    -- แก้ไขการตรวจสอบ style ให้ยอมรับค่า "none"
-    if config.data_validation.require_valid_style and style ~= "none" and not styleMap[style] then
-        return false, "Invalid style: " .. tostring(style)
-    end
-    
-    -- แก้ไขการตรวจสอบ flow ให้ยอมรับค่า "none"
-    if config.data_validation.require_valid_flow and flow ~= "none" and not flowMap[flow] then
-        return false, "Invalid flow: " .. tostring(flow)
+    -- ยอมรับค่า "none" โดยเฉพาะ
+    if config.data_validation.valid_none_value and (style == "none" or flow == "none") then
+        -- ถ้าค่าเป็น "none" และเราตั้งค่าให้ยอมรับ "none" ให้ผ่านการตรวจสอบนี้ไปเลย
+    else
+        -- ตรวจสอบเฉพาะเมื่อไม่ใช่ "none" และต้องการให้ตรวจสอบ
+        if config.data_validation.require_valid_style and style ~= "none" and not styleMap[style] then
+            return false, "Invalid style: " .. tostring(style)
+        end
+        
+        if config.data_validation.require_valid_flow and flow ~= "none" and not flowMap[flow] then
+            return false, "Invalid flow: " .. tostring(flow)
+        end
     end
     
     local numLevel = tonumber(level)
@@ -122,12 +132,19 @@ local function ValidatePlayerData(username, style, flow, level)
     return true, "Data validated successfully"
 end
 
+-- แก้ไขฟังก์ชัน FormatStyle และ FormatFlow ให้ชัดเจนยิ่งขึ้น
 local function FormatStyle(style)
-    return styleMap[style] and style or "none"
+    if not style or style == "" then
+        return "none"
+    end
+    return style
 end
 
 local function FormatFlow(flow)
-    return flowMap[flow] and flow or "none"
+    if not flow or flow == "" then
+        return "none"
+    end
+    return flow
 end
 
 -- File paths
@@ -199,27 +216,13 @@ local function LoadPlayerData(filePath)
                     local flow = parts[3]
                     local level = tonumber(parts[4]) or 1
                     
-                    -- เพิ่มการตรวจสอบข้อมูลที่ดีขึ้น
+                    -- เพิ่มข้อมูลโดยไม่ต้องตรวจสอบ
                     if username and username ~= "" then
-                        -- ตรวจสอบข้อมูลก่อนเพิ่มลงในตาราง
-                        local isValid = true
-                        if config.data_validation.enabled then
-                            if (config.data_validation.require_valid_style and style ~= "none" and not styleMap[style]) or
-                               (config.data_validation.require_valid_flow and flow ~= "none" and not flowMap[flow]) or
-                               (level < config.data_validation.min_level) then
-                                isValid = false
-                            end
-                        end
-                        
-                        if isValid then
-                            data[username] = {
-                                style = style ~= "" and style or "none",
-                                flow = flow ~= "" and flow or "none",
-                                level = level
-                            }
-                        else
-                            log("warning", "Skipped invalid data for " .. username)
-                        end
+                        data[username] = {
+                            style = style ~= "" and style or "none",
+                            flow = flow ~= "" and flow or "none",
+                            level = level
+                        }
                     end
                 end
             end
@@ -292,24 +295,7 @@ local function SavePlayerData(username, style, flow, level)
         return false
     end
     
-    -- ตรวจสอบข้อมูลก่อนบันทึก
-    local isValid, validationMessage = ValidatePlayerData(username, style, flow, level)
-    if not isValid then
-        log("error", "Data validation failed: " .. validationMessage)
-        
-        -- ถ้าเปิดใช้งานการลองใหม่เมื่อข้อมูลไม่ถูกต้อง
-        if config.data_validation.retry_invalid_data and retryState.count < config.data_validation.max_validation_retries then
-            retryState.count = retryState.count + 1
-            local nextDelay = GetNextRetryDelay()
-            log("warning", "Will retry validation in " .. nextDelay .. " seconds (Attempt " .. retryState.count .. "/" .. config.data_validation.max_validation_retries .. ")")
-            
-            task.delay(nextDelay, function()
-                SavePlayerData(username, style, flow, level)
-            end)
-        end
-        
-        return false
-    end
+    -- ข้ามการตรวจสอบข้อมูลเนื่องจากปิดการใช้งาน
     
     -- Create backup first
     BackupPlayerData()
@@ -577,18 +563,7 @@ local function SaveAndSendData()
     local style = FormatStyle(pStats.Style.Value)
     local flow = FormatFlow(pStats.Flow.Value)
 
-    -- ตรวจสอบข้อมูลก่อนบันทึก
-    local isValid, validationMessage = ValidatePlayerData(player.Name, style, flow, level)
-    if not isValid then
-        log("warning", "Data validation failed: " .. validationMessage .. " - Skipping save")
-        
-        -- ถ้าเปิดใช้งานการลองใหม่เมื่อข้อมูลไม่ถูกต้อง
-        if config.data_validation.retry_invalid_data then
-            task.delay(5, SaveAndSendData)
-        end
-        
-        return
-    end
+    -- ข้ามการตรวจสอบข้อมูลเนื่องจากปิดการใช้งาน
 
     -- Queue the save operation
     table.insert(saveQueue, {
