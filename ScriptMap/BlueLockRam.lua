@@ -5,8 +5,26 @@ local config = {
     disable_shadows = true,
     optimize_lighting = true,
     save_cooldown = 5,
-    max_retries = 3,
-    retry_delay = 2
+    max_retries = 5,  -- เพิ่มจำนวนครั้งในการ retry
+    retry_delay = 2,  -- เวลาเริ่มต้นในการ retry
+    
+    -- การตั้งค่าใหม่
+    data_validation = {
+        enabled = true,           -- เปิดใช้งานการตรวจสอบข้อมูล
+        min_level = 1,            -- ระดับต่ำสุดที่ยอมรับได้
+        require_valid_style = true, -- ต้องการ style ที่ถูกต้อง
+        require_valid_flow = true,  -- ต้องการ flow ที่ถูกต้อง
+        retry_invalid_data = true,  -- ลองใหม่เมื่อข้อมูลไม่ถูกต้อง
+        max_validation_retries = 3  -- จำนวนครั้งสูงสุดในการลองตรวจสอบข้อมูล
+    },
+    
+    smart_retry = {
+        enabled = true,               -- เปิดใช้งานระบบ retry ที่ฉลาดขึ้น
+        use_exponential_backoff = true, -- ใช้การถอยหลังแบบ exponential
+        max_backoff = 30,             -- เวลาสูงสุดในการถอยหลัง (วินาที)
+        jitter = true,                -- เพิ่มความสุ่มในการถอยหลัง
+        success_reset_delay = true    -- รีเซ็ตเวลาถอยหลังเมื่อสำเร็จ
+    }
 }
 
 -- Ensure game is fully loaded before executing
@@ -53,7 +71,7 @@ local function FormatCoins(value)
     end
 end
 
--- Logging System
+-- Improved Logging System
 local function log(type, message)
     local timeStr = os.date("%H:%M:%S")
     if type == "info" then
@@ -64,17 +82,43 @@ local function log(type, message)
         warn("["..timeStr.."] ⚠️ " .. message)
     elseif type == "error" then
         warn("["..timeStr.."] ❌ " .. message)
+    elseif type == "debug" then
+        if config.debug_mode then
+            print("["..timeStr.."] 🔍 " .. message)
+        end
     end
 end
 
 log("info", "Script Started")
 
 -- Style and Flow Validation
-local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser", "King"}
-local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor"}
+local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser", "King", "NEL Bachira"}
+local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor", "Bee Freestyle"}
 local styleMap, flowMap = {}, {}
 for _, s in ipairs(validStyles) do styleMap[s] = true end
 for _, f in ipairs(validFlows) do flowMap[f] = true end
+
+-- ระบบตรวจสอบข้อมูลที่ดีขึ้น
+local function ValidatePlayerData(username, style, flow, level)
+    if not username or username == "" then
+        return false, "Invalid username"
+    end
+    
+    if config.data_validation.require_valid_style and (not style or style == "none" or not styleMap[style]) then
+        return false, "Invalid style: " .. tostring(style)
+    end
+    
+    if config.data_validation.require_valid_flow and (not flow or flow == "none" or not flowMap[flow]) then
+        return false, "Invalid flow: " .. tostring(flow)
+    end
+    
+    local numLevel = tonumber(level)
+    if not numLevel or numLevel < config.data_validation.min_level then
+        return false, "Invalid level: " .. tostring(level)
+    end
+    
+    return true, "Data validated successfully"
+end
 
 local function FormatStyle(style)
     return styleMap[style] and style or "none"
@@ -89,7 +133,6 @@ local folderName = "Idcheck/PlayerData"
 local fileName = folderName .. "/player_data.txt"
 local backupFileName = folderName .. "/player_data_backup.txt"
 local tempFileName = folderName .. "/player_data_temp.txt"
-local archiveFileName = folderName .. "/player_data_archive.txt"
 
 -- Check file writing capability - AWP specific
 local canWriteFile = pcall(function() writefile("test.txt", "test") end)
@@ -154,12 +197,27 @@ local function LoadPlayerData(filePath)
                     local flow = parts[3]
                     local level = tonumber(parts[4]) or 1
                     
+                    -- เพิ่มการตรวจสอบข้อมูลที่ดีขึ้น
                     if username and username ~= "" then
-                        data[username] = {
-                            style = style ~= "" and style or "none",
-                            flow = flow ~= "" and flow or "none",
-                            level = level
-                        }
+                        -- ตรวจสอบข้อมูลก่อนเพิ่มลงในตาราง
+                        local isValid = true
+                        if config.data_validation.enabled then
+                            if (config.data_validation.require_valid_style and (not style or style == "none" or not styleMap[style])) or
+                               (config.data_validation.require_valid_flow and (not flow or flow == "none" or not flowMap[flow])) or
+                               (level < config.data_validation.min_level) then
+                                isValid = false
+                            end
+                        end
+                        
+                        if isValid then
+                            data[username] = {
+                                style = style ~= "" and style or "none",
+                                flow = flow ~= "" and flow or "none",
+                                level = level
+                            }
+                        else
+                            log("warning", "Skipped invalid data for " .. username)
+                        end
                     end
                 end
             end
@@ -175,7 +233,7 @@ local function LoadPlayerData(filePath)
     return data
 end
 
--- Create comprehensive backup system
+-- Create backup system (simplified, removed archive)
 local function BackupPlayerData()
     if not canWriteFile then return end
     
@@ -183,34 +241,71 @@ local function BackupPlayerData()
     pcall(function()
         if isfile(fileName) then
             writefile(backupFileName, readfile(fileName))
-            log("success", "Standard backup created")
-        end
-    end)
-    
-    -- Create timestamped archive backup once per hour
-    pcall(function()
-        if isfile(fileName) then
-            local currentHour = os.date("%Y-%m-%d_%H")
-            local archiveFile = folderName .. "/archive_" .. currentHour .. ".txt"
-            
-            -- Only create archive if it doesn't exist for this hour
-            if not isfile(archiveFile) then
-                writefile(archiveFile, readfile(fileName))
-                log("success", "Archive backup created: " .. archiveFile)
-            end
+            log("success", "Backup created")
         end
     end)
 end
 
--- Improved save function with verification
+-- ระบบ Auto-Retry ที่ฉลาดขึ้น
+local retryState = {
+    count = 0,
+    delay = config.retry_delay,
+    lastAttempt = 0,
+    lastSuccess = 0
+}
+
+local function GetNextRetryDelay()
+    if not config.smart_retry.enabled then
+        return config.retry_delay
+    end
+    
+    local delay = config.retry_delay
+    
+    if config.smart_retry.use_exponential_backoff then
+        -- คำนวณเวลาถอยหลังแบบ exponential
+        delay = config.retry_delay * (2 ^ retryState.count)
+        
+        -- จำกัดเวลาสูงสุด
+        delay = math.min(delay, config.smart_retry.max_backoff)
+    end
+    
+    -- เพิ่มความสุ่ม (jitter) เพื่อป้องกันการชนกันของคำขอ
+    if config.smart_retry.jitter then
+        delay = delay * (0.5 + (math.random() * 0.5))
+    end
+    
+    return delay
+end
+
+local function ResetRetryState()
+    retryState.count = 0
+    retryState.delay = config.retry_delay
+    retryState.lastSuccess = os.time()
+end
+
+-- Improved save function with verification and smart retry
 local function SavePlayerData(username, style, flow, level)
     if not canWriteFile then
         log("warning", "File writing not supported, skipping save.")
         return false
     end
     
-    if not username or username == "" then
-        log("error", "Invalid username, skipping save.")
+    -- ตรวจสอบข้อมูลก่อนบันทึก
+    local isValid, validationMessage = ValidatePlayerData(username, style, flow, level)
+    if not isValid then
+        log("error", "Data validation failed: " .. validationMessage)
+        
+        -- ถ้าเปิดใช้งานการลองใหม่เมื่อข้อมูลไม่ถูกต้อง
+        if config.data_validation.retry_invalid_data and retryState.count < config.data_validation.max_validation_retries then
+            retryState.count = retryState.count + 1
+            local nextDelay = GetNextRetryDelay()
+            log("warning", "Will retry validation in " .. nextDelay .. " seconds (Attempt " .. retryState.count .. "/" .. config.data_validation.max_validation_retries .. ")")
+            
+            task.delay(nextDelay, function()
+                SavePlayerData(username, style, flow, level)
+            end)
+        end
+        
         return false
     end
     
@@ -255,6 +350,20 @@ local function SavePlayerData(username, style, flow, level)
     
     if not tempSuccess then
         log("error", "Failed to write temporary file")
+        
+        -- ใช้ระบบ retry ที่ฉลาดขึ้น
+        if config.smart_retry.enabled and retryState.count < config.max_retries then
+            retryState.count = retryState.count + 1
+            retryState.lastAttempt = os.time()
+            
+            local nextDelay = GetNextRetryDelay()
+            log("warning", "Will retry saving in " .. nextDelay .. " seconds (Attempt " .. retryState.count .. "/" .. config.max_retries .. ")")
+            
+            task.delay(nextDelay, function()
+                SavePlayerData(username, style, flow, level)
+            end)
+        end
+        
         return false
     end
     
@@ -265,6 +374,20 @@ local function SavePlayerData(username, style, flow, level)
     
     if tempCount < updatedCount then
         log("error", "Temporary file verification failed: Expected " .. updatedCount .. " entries, got " .. tempCount)
+        
+        -- ใช้ระบบ retry ที่ฉลาดขึ้น
+        if config.smart_retry.enabled and retryState.count < config.max_retries then
+            retryState.count = retryState.count + 1
+            retryState.lastAttempt = os.time()
+            
+            local nextDelay = GetNextRetryDelay()
+            log("warning", "Will retry verification in " .. nextDelay .. " seconds (Attempt " .. retryState.count .. "/" .. config.max_retries .. ")")
+            
+            task.delay(nextDelay, function()
+                SavePlayerData(username, style, flow, level)
+            end)
+        end
+        
         return false
     end
     
@@ -275,6 +398,20 @@ local function SavePlayerData(username, style, flow, level)
     
     if not moveSuccess then
         log("error", "Failed to move temporary file to main file")
+        
+        -- ใช้ระบบ retry ที่ฉลาดขึ้น
+        if config.smart_retry.enabled and retryState.count < config.max_retries then
+            retryState.count = retryState.count + 1
+            retryState.lastAttempt = os.time()
+            
+            local nextDelay = GetNextRetryDelay()
+            log("warning", "Will retry moving file in " .. nextDelay .. " seconds (Attempt " .. retryState.count .. "/" .. config.max_retries .. ")")
+            
+            task.delay(nextDelay, function()
+                SavePlayerData(username, style, flow, level)
+            end)
+        end
+        
         return false
     end
     
@@ -294,14 +431,32 @@ local function SavePlayerData(username, style, flow, level)
             end
         end)
         
+        -- ใช้ระบบ retry ที่ฉลาดขึ้น
+        if config.smart_retry.enabled and retryState.count < config.max_retries then
+            retryState.count = retryState.count + 1
+            retryState.lastAttempt = os.time()
+            
+            local nextDelay = GetNextRetryDelay()
+            log("warning", "Will retry final verification in " .. nextDelay .. " seconds (Attempt " .. retryState.count .. "/" .. config.max_retries .. ")")
+            
+            task.delay(nextDelay, function()
+                SavePlayerData(username, style, flow, level)
+            end)
+        end
+        
         return false
+    end
+    
+    -- รีเซ็ตสถานะ retry เมื่อสำเร็จ
+    if config.smart_retry.success_reset_delay then
+        ResetRetryState()
     end
     
     log("success", "Data saved and verified: " .. finalCount .. " entries (Added: " .. (updatedCount - initialCount) .. ")")
     return true
 end
 
--- Account Management
+-- Account Management with improved data validation
 local function WaitForDataToLoad()
     local player = game:GetService("Players").LocalPlayer
     local stats, pStats
@@ -393,7 +548,7 @@ local function ProcessSaveQueue()
     end
 end
 
--- Improved save function
+-- Improved save function with data validation
 local initialRun = true
 local function SaveAndSendData()
     -- Don't save too frequently
@@ -420,8 +575,16 @@ local function SaveAndSendData()
     local style = FormatStyle(pStats.Style.Value)
     local flow = FormatFlow(pStats.Flow.Value)
 
-    if money < 0 or level <= 0 then
-        log("warning", "Invalid data detected (Money: " .. money .. ", Level: " .. level .. "), skipping save.")
+    -- ตรวจสอบข้อมูลก่อนบันทึก
+    local isValid, validationMessage = ValidatePlayerData(player.Name, style, flow, level)
+    if not isValid then
+        log("warning", "Data validation failed: " .. validationMessage .. " - Skipping save")
+        
+        -- ถ้าเปิดใช้งานการลองใหม่เมื่อข้อมูลไม่ถูกต้อง
+        if config.data_validation.retry_invalid_data then
+            task.delay(5, SaveAndSendData)
+        end
+        
         return
     end
 
@@ -600,6 +763,7 @@ task.spawn(function()
                 print("Style: " .. style)
                 print("Flow: " .. flow)
                 print("Saves: " .. saveCount)
+                print("Retry Count: " .. retryState.count)
                 
                 -- Show data count
                 if canWriteFile and isfile(fileName) then
