@@ -12,8 +12,8 @@ local config = {
     data_validation = {
         enabled = true,           -- เปิดใช้งานการตรวจสอบข้อมูล
         min_level = 1,            -- ระดับต่ำสุดที่ยอมรับได้
-        require_valid_style = true, -- ต้องการ style ที่ถูกต้อง
-        require_valid_flow = true,  -- ต้องการ flow ที่ถูกต้อง
+        require_valid_style = false, -- ไม่จำเป็นต้องมี style ที่ถูกต้อง
+        require_valid_flow = false,  -- ไม่จำเป็นต้องมี flow ที่ถูกต้อง
         retry_invalid_data = true,  -- ลองใหม่เมื่อข้อมูลไม่ถูกต้อง
         max_validation_retries = 3  -- จำนวนครั้งสูงสุดในการลองตรวจสอบข้อมูล
     },
@@ -104,11 +104,13 @@ local function ValidatePlayerData(username, style, flow, level)
         return false, "Invalid username"
     end
     
-    if config.data_validation.require_valid_style and (not style or style == "none" or not styleMap[style]) then
+    -- แก้ไขการตรวจสอบ style ให้ยอมรับค่า "none"
+    if config.data_validation.require_valid_style and style ~= "none" and not styleMap[style] then
         return false, "Invalid style: " .. tostring(style)
     end
     
-    if config.data_validation.require_valid_flow and (not flow or flow == "none" or not flowMap[flow]) then
+    -- แก้ไขการตรวจสอบ flow ให้ยอมรับค่า "none"
+    if config.data_validation.require_valid_flow and flow ~= "none" and not flowMap[flow] then
         return false, "Invalid flow: " .. tostring(flow)
     end
     
@@ -202,8 +204,8 @@ local function LoadPlayerData(filePath)
                         -- ตรวจสอบข้อมูลก่อนเพิ่มลงในตาราง
                         local isValid = true
                         if config.data_validation.enabled then
-                            if (config.data_validation.require_valid_style and (not style or style == "none" or not styleMap[style])) or
-                               (config.data_validation.require_valid_flow and (not flow or flow == "none" or not flowMap[flow])) or
+                            if (config.data_validation.require_valid_style and style ~= "none" and not styleMap[style]) or
+                               (config.data_validation.require_valid_flow and flow ~= "none" and not flowMap[flow]) or
                                (level < config.data_validation.min_level) then
                                 isValid = false
                             end
