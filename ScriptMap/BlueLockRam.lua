@@ -68,8 +68,8 @@ end
 log("info", "Script Started")
 
 -- Style and Flow Lists
-local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser", "King", "NEL Bachira"}
-local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor", "Bee Freestyle"}
+local validStyles = {"Shidou", "Yukimiya", "Sae", "Aiku", "Rin", "Don Lorenzo", "Kunigami", "NEL Isagi", "Kaiser", "King", "NEL Bachira", "NEL Rin"}
+local validFlows = {"Snake", "Prodigy", "Awakened Genius", "Dribbler", "Crow", "Trap", "Demon Wings", "Chameleon", "Wild Card", "Soul Harvester", "Emperor", "Bee Freestyle", "Destructive Impulses"}
 local styleMap, flowMap = {}, {}
 for _, s in ipairs(validStyles) do styleMap[s] = true end
 for _, f in ipairs(validFlows) do flowMap[f] = true end
