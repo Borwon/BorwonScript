@@ -208,6 +208,11 @@ local scripts = {
         name = "AnimeRangerX",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AnimeRangerX.lua"
     },
+    {
+        ids = {116495829188952}, -- Deadrails
+        name = "DeadRails",
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/DeadRails.lua"
+    },
 }
 
 -- Main function to run the loader with error recovery
