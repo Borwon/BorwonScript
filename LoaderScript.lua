@@ -214,7 +214,7 @@ local scripts = {
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/DeadRails.lua"
     },
     {
-        ids = {126884695634066}, -- Grow a Garden
+        ids = {126884695634066}, -- Grow a Gardenn
         name = "GrowaGarden",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/GrowaGarden.lua"
     },
