@@ -27,6 +27,7 @@ local EXCLUDE_ITEMS = {
     ["watering can"] = true,
     ["shovel"] = true,
     ["carrotseed"] = true,
+    ["Hedgehog"] = true,
     ["carrot seed"] = true
 }
 
