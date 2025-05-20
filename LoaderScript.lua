@@ -213,6 +213,11 @@ local scripts = {
         name = "DeadRails",
         url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/DeadRails.lua"
     },
+    {
+        ids = {126884695634066}, -- Grow a Garden
+        name = "GrowaGarden",
+        url = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/GrowaGarden.lua"
+    },
 }
 
 -- Main function to run the loader with error recovery
