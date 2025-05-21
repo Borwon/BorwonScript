@@ -1,6 +1,3 @@
--- รอให้เกมโหลดสมบูรณ์
-repeat task.wait() until game:IsLoaded() and game.Players and game.Players.LocalPlayer
-
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
@@ -181,7 +178,7 @@ local function teleportToServer(serverId)
     return true
 end
 
--- ลองเข้าร่วมเซิร์ฟเวอร์จาก AcceptedServers
+-- ลองเข้าร่วมเซิร์ฟเวอร์จาก AcceptedServers แค่ครั้งเดียว
 local function tryJoinAcceptedServers()
     local acceptedList = readJobIds(ACCEPTED_FILE)
     if #acceptedList == 0 then
@@ -189,24 +186,22 @@ local function tryJoinAcceptedServers()
         return false
     end
 
-    print("🔎 Attempting to join servers from AcceptedServers...")
-    for _, jobIdEntry in ipairs(acceptedList) do
-        local serverId = jobIdEntry:match("^(.-)%s%(") -- ดึง Job ID จากรูปแบบ "jobId (Version: 1233)"
-        if serverId then
-            print("🔍 Trying to join accepted server: " .. serverId)
-            local success = teleportToServer(serverId)
-            if success then
-                print("✅ Successfully joined accepted server: " .. serverId)
-                wait(10)
-                return true
-            else
-                print("⛔ Could not join accepted server: " .. serverId .. ". Trying next...")
-                wait(5)
-            end
+    print("🔎 Attempting to join first server from AcceptedServers...")
+    local serverId = acceptedList[1]:match("^(.-)%s%(") -- ดึง Job ID จากรูปแบบ "jobId (Version: 1233)"
+    if serverId then
+        print("🔍 Trying to join accepted server: " .. serverId)
+        local success = teleportToServer(serverId)
+        if success then
+            print("✅ Successfully joined accepted server: " .. serverId)
+            wait(10)
+            return true
+        else
+            print("⛔ Could not join accepted server: " .. serverId .. ". Finding new servers...")
+            return false
         end
     end
 
-    print("❌ All servers in AcceptedServers are unavailable. Finding new servers...")
+    print("❌ No valid server ID in AcceptedServers. Finding new servers...")
     return false
 end
 
@@ -382,7 +377,7 @@ end
 
 -- Main Execution
 if CURRENT_VERSION > MAX_VERSION then
-    -- ลองเข้าร่วมเซิร์ฟเวอร์จาก AcceptedServers ก่อน
+    -- ลองเข้าร่วมเซิร์ฟเวอร์จาก AcceptedServers แค่ครั้งเดียว
     local joined = tryJoinAcceptedServers()
     if not joined then
         task.spawn(findAndHop)
