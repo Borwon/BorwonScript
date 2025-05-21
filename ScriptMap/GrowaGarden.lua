@@ -1,23 +1,27 @@
+-- Configuration
+local CONFIG = {
+    MAX_VERSION = 1233,              -- Maximum acceptable game version
+    ENABLE_RAM_LOG = false,          -- Enable/disable RAM logging (true = on, false = off)
+    ENABLE_ACCEPTED_SERVER_JOIN = true -- Enable/disable joining servers from AcceptedServers (true = on, false = off)
+}
+
+-- Service Initialization
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Players = game:GetService("Players")
 local LOCAL_PLAYER = Players.LocalPlayer
 local PLACE_ID = game.PlaceId
 local CURRENT_VERSION = game.PlaceVersion
-local MAX_VERSION = 1233
-local ENABLE_RAM_LOG = false -- ตัวแปรควบคุมการเปิด/ปิด Log ของ RAM (true = เปิด, false = ปิด)
 
 print("📌 Current Game Version:", CURRENT_VERSION)
 
--- ✅ ถ้าเวอร์ชันนี้ไม่เกิน MAX → ไม่ต้องทำอะไร
-if CURRENT_VERSION <= MAX_VERSION then
+if CURRENT_VERSION <= CONFIG.MAX_VERSION then
     print("✅ You're already in an acceptable version (" .. CURRENT_VERSION .. ").")
 else
-    -- 🌀 ถ้าเวอร์ชันนี้สูงเกิน → เริ่มหาเซิร์ฟใหม่
-    print("🔍 Version is", CURRENT_VERSION, "which is > " .. MAX_VERSION .. ". Hopping to better server...")
+    print("🔍 Version is " .. CURRENT_VERSION .. " which is > " .. CONFIG.MAX_VERSION .. ". Hopping to better server...")
 end
 
--- สร้าง Folder ใน Executor Storage
+-- Utility Functions
 local function createExecutorFolder(folderName)
     if isfolder then
         if not isfolder(folderName) then
@@ -31,14 +35,15 @@ local function createExecutorFolder(folderName)
     end
 end
 
--- อ่าน Job IDs จากไฟล์
 local function readJobIds(fileName)
     if isfile and readfile then
         if isfile(fileName) then
             local content = readfile(fileName)
             local jobIds = {}
             for jobId in content:gmatch("[^\n]+") do
-                table.insert(jobIds, jobId)
+                -- Only extract the base jobId (before any space or parenthesis)
+                local baseId = jobId:match("^(.-)%s*%(") or jobId
+                table.insert(jobIds, baseId)
             end
             return jobIds
         end
@@ -46,67 +51,106 @@ local function readJobIds(fileName)
     return {}
 end
 
--- เขียน Job ID ลงไฟล์
 local function writeJobId(fileName, jobId)
     if writefile and isfile then
         local jobIds = readJobIds(fileName)
+        local baseJobId = jobId:match("^(.-)%s*%(") or jobId
+        local isDuplicate = false
         for _, id in ipairs(jobIds) do
-            if id == jobId then
-                return -- Job ID มีอยู่แล้ว
+            if id == baseJobId then
+                isDuplicate = true
+                break
             end
         end
-        table.insert(jobIds, jobId)
-        writefile(fileName, table.concat(jobIds, "\n"))
-        print("📝 Added to " .. fileName .. ": " .. jobId)
+        if not isDuplicate then
+            -- Only store the base jobId for blacklist, but keep full info for accepted servers
+            if fileName:find("Blacklist") then
+                table.insert(jobIds, baseJobId)
+                writefile(fileName, table.concat(jobIds, "\n"))
+                print("📝 Added to " .. fileName .. ": " .. baseJobId)
+            else
+                table.insert(jobIds, jobId)
+                writefile(fileName, table.concat(jobIds, "\n"))
+                print("📝 Added to " .. fileName .. ": " .. jobId)
+            end
+        else
+            print("ℹ️ Skipped duplicate in " .. fileName .. ": " .. baseJobId)
+        end
     else
         warn("⚠️ Executor does not support file writing. Cannot save " .. fileName .. ".")
     end
 end
 
--- สร้าง Folder และกำหนดไฟล์สำหรับ ServerBlacklist และ AcceptedServers
-createExecutorFolder("ServerHopData")
-local BLACKLIST_FILE = "ServerHopData/ServerBlacklist.txt"
-local ACCEPTED_FILE = "ServerHopData/AcceptedServers.txt"
-
--- โหลด RAMAccount
-local RAMAccount
-local success, err = pcall(function()
-    RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
-end)
-if not success then
-    warn("[ERROR] Failed to load RAMAccount: " .. tostring(err))
-    RAMAccount = { new = function() return { SetAlias = function() end, SetDescription = function() end } end }
+local function smartWait(minTime, maxTime)
+    local delayTime = math.random(minTime * 100, maxTime * 100) / 100
+    wait(delayTime)
 end
 
--- สร้าง MyAccount
-local MyAccount
-success, err = pcall(function()
-    MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
-end)
-if not success or not MyAccount then
-    warn("[ERROR] Failed to initialize MyAccount: " .. tostring(err))
-    MyAccount = RAMAccount.new("DefaultUser")
+local function log(type, message, isRAMLog)
+    if isRAMLog and not CONFIG.ENABLE_RAM_LOG then return end
+    local timeStr = os.date("%H:%M:%S")
+    if type == "info" then
+        print("[" .. timeStr .. "] ℹ️ " .. message)
+    elseif type == "error" then
+        warn("[" .. timeStr .. "] ❌ " .. message)
+    elseif type == "debug" then
+        print("[" .. timeStr .. "] 🔍 " .. message)
+    end
 end
 
--- บันทึก JobId ปัจจุบันลง ServerBlacklist
+local function formatMoney(value)
+    value = tonumber(value) or 0
+    if value >= 1e12 then
+        return string.format("%.2fT", value / 1e12)
+    elseif value >= 1e9 then
+        return string.format("%.2fB", value / 1e9)
+    elseif value >= 1e6 then
+        return string.format("%.2fM", value / 1e6)
+    elseif value >= 1e3 then
+        return string.format("%.2fk", value / 1e3)
+    else
+        return tostring(value)
+    end
+end
+
+local function cleanItemName(itemName)
+    local cleanedName = itemName:match("^[^%[]+"):gsub("%s+$", "")
+    return cleanedName:lower():gsub("[_%s]+", "")
+end
+
+-- Core Functions
 local function saveCurrentServer()
     local currentJobId = game.JobId
     if currentJobId and currentJobId ~= "" then
-        writeJobId(BLACKLIST_FILE, currentJobId)
+        writeJobId("ServerHopData/ServerBlacklist.txt", currentJobId)
+        print("📝 Saved current server to Blacklist: " .. currentJobId)
+    else
+        warn("❌ Failed to get current JobId for Blacklist.")
     end
 end
 
--- บันทึก JobId ของเซิร์ฟเวอร์ที่เวอร์ชัน <= 1233
 local function saveAcceptedServer(serverId, version)
     if serverId and serverId ~= "" then
-        writeJobId(ACCEPTED_FILE, serverId .. " (Version: " .. version .. ")")
+        writeJobId("ServerHopData/AcceptedServers.txt", serverId .. " (Version: " .. version .. ")")
+        print("📝 Saved accepted server: " .. serverId .. " (Version: " .. version .. ")")
     end
 end
 
--- ตรวจสอบว่า JobId นี้อยู่ใน blacklist หรือไม่
 local function isServerBlacklisted(jobId)
-    local blacklisted = readJobIds(BLACKLIST_FILE)
+    local blacklisted = readJobIds("ServerHopData/ServerBlacklist.txt")
     for _, id in ipairs(blacklisted) do
+        if id == jobId then
+            print("🔍 Server " .. jobId .. " is blacklisted.")
+            return true
+        end
+    end
+    print("🔍 Server " .. jobId .. " is not blacklisted.")
+    return false
+end
+
+local function isServerAccepted(jobId)
+    local accepted = readJobIds("ServerHopData/AcceptedServers.txt")
+    for _, id in ipairs(accepted) do
         if id == jobId then
             return true
         end
@@ -114,31 +158,11 @@ local function isServerBlacklisted(jobId)
     return false
 end
 
--- ตรวจสอบว่า JobId นี้อยู่ใน AcceptedServers หรือไม่
-local function isServerAccepted(jobId)
-    local accepted = readJobIds(ACCEPTED_FILE)
-    for _, id in ipairs(accepted) do
-        if id:match(jobId) then
-            return true
-        end
-    end
-    return false
-end
-
--- ⭐ random delay ป้องกัน rate limit
-local function smartWait(minTime, maxTime)
-    local delayTime = math.random(minTime * 100, maxTime * 100) / 100
-    wait(delayTime)
-end
-
--- ⭐ ขอ server list จาก Roblox API
 local function getPublicServers(cursor)
     local url = ("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Asc&limit=100"):format(PLACE_ID)
-    if cursor then
-        url = url .. "&cursor=" .. cursor
-    end
+    if cursor then url = url .. "&cursor=" .. cursor end
 
-    smartWait(2, 4) -- wait ป้องกัน rate limit
+    smartWait(2, 4)
 
     local success, result = pcall(function()
         local raw = game:HttpGet(url)
@@ -146,8 +170,7 @@ local function getPublicServers(cursor)
     end)
 
     if success then
-        if result and result.data then
-            return result
+        if result and result.data then return result
         elseif result.errors then
             for _, err in ipairs(result.errors) do
                 if err.message == "Too many requests" then
@@ -165,7 +188,6 @@ local function getPublicServers(cursor)
     return nil
 end
 
--- ⭐ teleport ไปเซิร์ฟใหม่
 local function teleportToServer(serverId)
     print("🚀 Teleporting to:", serverId)
     local success, err = pcall(function()
@@ -175,39 +197,52 @@ local function teleportToServer(serverId)
         warn("❌ Failed to teleport to " .. serverId .. ": " .. tostring(err))
         return false
     end
-    return true
+
+    task.wait(5)
+    if game.JobId and game.JobId == serverId then
+        print("✅ Teleport confirmed. Now in server:", serverId)
+        return true
+    else
+        print("⛔ Teleport failed or disconnected after teleport to:", serverId)
+        return false
+    end
 end
 
--- ลองเข้าร่วมเซิร์ฟเวอร์จาก AcceptedServers แค่ครั้งเดียว
 local function tryJoinAcceptedServers()
-    local acceptedList = readJobIds(ACCEPTED_FILE)
+    if not CONFIG.ENABLE_ACCEPTED_SERVER_JOIN then
+        print("🔧 Accepted server join disabled. Proceeding to find new servers...")
+        return false
+    end
+
+    local acceptedList = readJobIds("ServerHopData/AcceptedServers.txt")
     if #acceptedList == 0 then
         print("📂 No servers in AcceptedServers to try. Proceeding to find new servers...")
         return false
     end
 
-    print("🔎 Attempting to join first server from AcceptedServers...")
-    local serverId = acceptedList[1]:match("^(.-)%s%(") -- ดึง Job ID จากรูปแบบ "jobId (Version: 1233)"
-    if serverId then
-        print("🔍 Trying to join accepted server: " .. serverId)
+    print("🔎 Attempting to join a random server from AcceptedServers (one attempt)...")
+    local randomIndex = math.random(1, #acceptedList)
+    local serverId = acceptedList[randomIndex]:match("^(.-)%s%(")
+    if serverId and not isServerBlacklisted(serverId) then
+        print("🔍 Trying to join random accepted server: " .. serverId)
         local success = teleportToServer(serverId)
         if success then
-            print("✅ Successfully joined accepted server: " .. serverId)
-            wait(10)
+            print("✅ Successfully joined and confirmed in accepted server: " .. serverId)
             return true
         else
-            print("⛔ Could not join accepted server: " .. serverId .. ". Finding new servers...")
+            print("⛔ Could not join accepted server: " .. serverId .. ". Switching to normal hop...")
+            wait(3)
             return false
         end
     end
 
-    print("❌ No valid server ID in AcceptedServers. Finding new servers...")
+    print("❌ No valid or non-blacklisted server ID in AcceptedServers. Switching to normal hop...")
+    wait(3)
     return false
 end
 
--- 🔁 วนหา server ที่ version ต่ำกว่าและไม่ซ้ำ
 local function findAndHop()
-    -- บันทึกเซิร์ฟเวอร์ปัจจุบันก่อนเริ่ม hop
+    print("🔍 Starting normal server hop...")
     saveCurrentServer()
     local cursor = nil
 
@@ -222,15 +257,19 @@ local function findAndHop()
 
                     print(string.format("🧩 Server: %s | Version: %d | Players: %d", server.id, ver, playing))
 
-                    if ver <= MAX_VERSION and playing < maxPlayers then
-                        -- บันทึก JobId ลง AcceptedServers
+                    if ver <= CONFIG.MAX_VERSION and playing < maxPlayers then
                         saveAcceptedServer(server.id, ver)
-                        -- เพิ่ม JobId ลง blacklist เฉพาะเมื่อไม่ได้อยู่ใน AcceptedServers
+                        -- Only blacklist if not accepted
                         if not isServerAccepted(server.id) then
-                            writeJobId(BLACKLIST_FILE, server.id)
+                            writeJobId("ServerHopData/ServerBlacklist.txt", server.id)
                         end
-                        teleportToServer(server.id)
-                        wait(10)
+                        local success = teleportToServer(server.id)
+                        if success then
+                            task.wait(10)
+                            return
+                        else
+                            task.wait(3)
+                        end
                     end
                 else
                     if server.id then
@@ -252,45 +291,7 @@ local function findAndHop()
     end
 end
 
--- ฟังก์ชัน log กระชับ
-local function log(type, message, isRAMLog)
-    if isRAMLog and not ENABLE_RAM_LOG then return end -- ข้าม Log ของ RAM ถ้าปิดอยู่
-    local timeStr = os.date("%H:%M:%S")
-    if type == "info" then
-        print("["..timeStr.."] ℹ️ " .. message)
-    elseif type == "error" then
-        warn("["..timeStr.."] ❌ " .. message)
-    elseif type == "debug" then
-        print("["..timeStr.."] 🔍 " .. message)
-    end
-end
-
--- ฟังก์ชันแปลงเลขเงินให้เป็นตัวย่อ
-local function FormatMoney(value)
-    value = tonumber(value) or 0
-    if value >= 1e12 then
-        return string.format("%.2fT", value / 1e12)
-    elseif value >= 1e9 then
-        return string.format("%.2fB", value / 1e9)
-    elseif value >= 1e6 then
-        return string.format("%.2fM", value / 1e6)
-    elseif value >= 1e3 then
-        return string.format("%.2fk", value / 1e3)
-    else
-        return tostring(value)
-    end
-end
-
--- ฟังก์ชันทำความสะอาดชื่อไอเทม
-local function CleanItemName(itemName)
-    -- ตัดส่วนที่มี [ ] ออก เช่น "Shovel [Destroy Plants]" -> "Shovel"
-    local cleanedName = itemName:match("^[^%[]+"):gsub("%s+$", "")
-    -- แปลงเป็น lowercase และตัดช่องว่างหรือขีดเส้นใต้
-    return cleanedName:lower():gsub("[_%s]+", "")
-end
-
--- ฟังก์ชันดึงข้อมูลไอเทมที่ต้องการ
-local function GetTargetItemsSummary()
+local function getTargetItemsSummary()
     local summary = {}
     local backpack = game:GetService("Players").LocalPlayer:FindFirstChild("Backpack")
     if not backpack then
@@ -298,28 +299,24 @@ local function GetTargetItemsSummary()
         return "No Items"
     end
 
-    -- ดีบัก: แสดงไอเทมทั้งหมดใน Backpack (ชื่อดิบ)
     log("debug", "Raw items in Backpack:", true)
     for _, item in ipairs(backpack:GetChildren()) do
         log("debug", "- " .. item.Name, true)
     end
 
-    -- รายการไอเทมที่ต้องการ
     local targetItems = {"Candy Blossom Seed", "Night Seed Pack", "Night Egg", "Bug Egg"}
     local targetSet = {}
     for _, target in ipairs(targetItems) do
-        targetSet[CleanItemName(target)] = true
+        targetSet[cleanItemName(target)] = true
     end
 
-    -- ดีบัก: แสดงรายการเป้าหมายหลังทำความสะอาด
     log("debug", "Target items (cleaned):", true)
     for target, _ in pairs(targetSet) do
         log("debug", "- " .. target, true)
     end
 
-    -- ตรวจสอบไอเทมใน Backpack ด้วยการค้นหาคำย่อย
     for _, item in ipairs(backpack:GetChildren()) do
-        local cleanedName = CleanItemName(item.Name)
+        local cleanedName = cleanItemName(item.Name)
         log("debug", "Checking item: " .. item.Name .. " (cleaned: " .. cleanedName .. ")", true)
         for targetCleaned in pairs(targetSet) do
             if cleanedName:find(targetCleaned) or targetCleaned:find(cleanedName) then
@@ -331,7 +328,7 @@ local function GetTargetItemsSummary()
                 end
                 table.insert(summary, item.Name .. amount)
                 log("debug", "Found item: " .. item.Name .. amount, true)
-                break -- หยุดการตรวจสอบเมื่อพบการจับคู่
+                break
             end
         end
     end
@@ -342,11 +339,9 @@ local function GetTargetItemsSummary()
     return table.concat(summary, ", ")
 end
 
--- วนลูปหลักเพื่ออัปเดต RAMAccount
 local function startRAMUpdateLoop()
     log("info", "Starting RAM update loop", true)
     while true do
-        -- ดึงข้อมูลเงิน
         local sheckles = 0
         local leaderstats = game:GetService("Players").LocalPlayer:FindFirstChild("leaderstats")
         if leaderstats and leaderstats:FindFirstChild("Sheckles") then
@@ -354,15 +349,17 @@ local function startRAMUpdateLoop()
         else
             log("error", "Sheckles not found in leaderstats", true)
         end
-        local formatted_money = FormatMoney(sheckles)
+        local formatted_money = formatMoney(sheckles)
 
-        -- ดึงข้อมูลไอเทมที่ต้องการ
-        local items_summary = GetTargetItemsSummary()
+        local items_summary = getTargetItemsSummary()
 
-        -- อัปเดต RAMAccount
         local update_success, update_err = pcall(function()
-            MyAccount:SetAlias("Money: " .. formatted_money)
-            MyAccount:SetDescription(items_summary)
+            if typeof(MyAccount) == "table" or typeof(MyAccount) == "Instance" then
+                MyAccount:SetAlias("Money: " .. formatted_money)
+                MyAccount:SetDescription(items_summary)
+            else
+                log("error", "MyAccount is not defined or not valid", true)
+            end
         end)
 
         if update_success then
@@ -371,19 +368,45 @@ local function startRAMUpdateLoop()
             log("error", "Failed to update RAMAccount: " .. tostring(update_err), true)
         end
 
-        task.wait(60) -- อัปเดตทุก 1 นาที
+        task.wait(60)
     end
 end
 
 -- Main Execution
-if CURRENT_VERSION > MAX_VERSION then
-    -- ลองเข้าร่วมเซิร์ฟเวอร์จาก AcceptedServers แค่ครั้งเดียว
+print("🔧 Starting main execution...")
+
+-- Ensure ServerHopData folder exists before any file operations
+createExecutorFolder("ServerHopData")
+
+-- Start RAM update immediately
+print("🔄 Starting RAM update loop immediately...")
+task.spawn(startRAMUpdateLoop)
+
+-- Delay Server Hop by 30 seconds to wait for loading
+print("⏳ Waiting 30 seconds before starting server hop...")
+task.wait(30)
+print("⏳ Wait complete. Proceeding with server hop...")
+
+if CURRENT_VERSION > CONFIG.MAX_VERSION then
+    print("🔍 Current version > MAX_VERSION. Attempting to join accepted server...")
     local joined = tryJoinAcceptedServers()
+    print("🔎 Join result:", joined and "Success" or "Failed")
     if not joined then
+        print("🔍 Switching to normal server hop...")
         task.spawn(findAndHop)
+    else
+        print("✅ Already joined an accepted server. Checking stability...")
+        wait(10)
+        if game.JobId ~= "7394c826-face-4fae-9cfd-7a52f369a93d" then
+            print("⛔ Disconnected from accepted server. Switching to normal hop...")
+            task.spawn(findAndHop)
+        else
+            print("✅ Server stable. No further hopping needed.")
+        end
     end
 else
-    -- บันทึก JobId ปัจจุบันลง AcceptedServers หากเวอร์ชัน <= 1233
+    print("✅ Current version <= MAX_VERSION. Saving current server to AcceptedServers...")
     saveAcceptedServer(game.JobId, CURRENT_VERSION)
 end
-task.spawn(startRAMUpdateLoop) -- เริ่มลูป RAM เสมอ
+
+print("🔧 Main execution completed.")
