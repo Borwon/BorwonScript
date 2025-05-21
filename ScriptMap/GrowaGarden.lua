@@ -21,16 +21,6 @@ if not success or not MyAccount then
     return
 end
 
--- ลิสต์ไอเทมที่ไม่ต้องการรวม
-local EXCLUDE_ITEMS = {
-    ["wateringcan"] = true,
-    ["watering can"] = true,
-    ["shovel"] = true,
-    ["carrotseed"] = true,
-    ["Hedgehog"] = true,
-    ["carrot seed"] = true
-}
-
 -- ฟังก์ชัน log กระชับ
 local function log(type, message)
     local timeStr = os.date("%H:%M:%S")
@@ -63,39 +53,47 @@ end
 local function CleanItemName(itemName)
     -- ตัดส่วนที่มี [ ] ออก เช่น "Shovel [Destroy Plants]" -> "Shovel"
     local cleanedName = itemName:match("^[^%[]+"):gsub("%s+$", "")
-    -- แปลงเป็น lowercase และตัดช่องว่าง
-    return cleanedName:lower():gsub("%s+", "")
+    return cleanedName
 end
 
--- ฟังก์ชันรวมชื่อและจำนวนไอเทมใน Backpack
-local function GetBackpackSummary()
+-- ฟังก์ชันดึงข้อมูลไอเทมที่ต้องการ
+local function GetTargetItemsSummary()
     local summary = {}
     local backpack = game:GetService("Players").LocalPlayer:FindFirstChild("Backpack")
     if not backpack then
         log("error", "No Backpack found")
-        return "No Backpack"
+        return "No Items"
     end
+
+    -- ดีบัก: แสดงไอเทมทั้งหมดใน Backpack
+    log("debug", "Items in Backpack:")
+    for _, item in ipairs(backpack:GetChildren()) do
+        log("debug", "- " .. item.Name)
+    end
+
+    local targetItems = {
+        ["Candy Blossom Seed"] = true,
+        ["Night Seed Pack"] = true,
+        ["Night Egg"] = true,
+        ["Bug Egg"] = true
+    }
 
     for _, item in ipairs(backpack:GetChildren()) do
         local cleanedName = CleanItemName(item.Name)
-        log("debug", "Checking item: " .. item.Name .. " (cleaned: " .. cleanedName .. ")")
-        if not EXCLUDE_ITEMS[cleanedName] then
+        if targetItems[cleanedName] then
             local amount = ""
             if item:FindFirstChild("Amount") and tonumber(item.Amount.Value) then
-                amount = tostring(item.Amount.Value)
+                amount = " x" .. tostring(item.Amount.Value)
             elseif item:FindFirstChild("Value") and tonumber(item.Value.Value) then
-                amount = tostring(item.Value.Value)
+                amount = " x" .. tostring(item.Value.Value)
             end
-            local displayName = amount ~= "" and string.format("%s x%s", item.Name, amount) or item.Name
-            table.insert(summary, displayName)
-            log("debug", "Included item: " .. displayName)
-        else
-            log("debug", "Excluded item: " .. item.Name)
+            table.insert(summary, item.Name .. amount)
+            log("debug", "Matched target item: " .. item.Name .. amount)
         end
     end
 
     if #summary == 0 then
-        return "No Items"
+        return "No Candy Blossom Seed, Night Seed Pack, Night Egg, or Bug Egg"
     end
     return table.concat(summary, ", ")
 end
@@ -114,8 +112,8 @@ task.spawn(function()
         end
         local formatted_money = FormatMoney(sheckles)
 
-        -- ดึงข้อมูลไอเทม
-        local items_summary = GetBackpackSummary()
+        -- ดึงข้อมูลไอเทมที่ต้องการ
+        local items_summary = GetTargetItemsSummary()
 
         -- อัปเดต RAMAccount
         local update_success, update_err = pcall(function()
@@ -129,6 +127,6 @@ task.spawn(function()
             log("error", "Failed to update RAMAccount: " .. tostring(update_err))
         end
 
-        task.wait(60) -- อัปเดตทุก 5 นาที
+        task.wait(60) -- อัปเดตทุก 1 นาที
     end
 end)
