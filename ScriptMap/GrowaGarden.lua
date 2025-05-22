@@ -305,7 +305,7 @@ local function getTargetItemsSummary()
         log("debug", "- " .. item.Name, true)
     end
 
-    local targetItems = {"Candy Blossom Seed", "Night Seed Pack", "Night Egg", "Bug Egg"}
+    local targetItems = {"Candy Blossom Seed", "Night Seed Pack", "Night Egg", "Bug Egg", "Moon Blossom Seed"}
     local targetSet = {}
     for _, target in ipairs(targetItems) do
         targetSet[cleanItemName(target)] = true
@@ -335,7 +335,7 @@ local function getTargetItemsSummary()
     end
 
     if #summary == 0 then
-        return "No Candy Blossom Seed, Night Seed Pack, Night Egg, or Bug Egg"
+        return "No Candy Blossom Seed, Night Seed Pack, Night Egg, Bug Egg, or Moon Blossom Seed"
     end
     return table.concat(summary, ", ")
 end
