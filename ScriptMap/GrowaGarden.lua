@@ -2,7 +2,7 @@
 local CONFIG = {
     MAX_VERSION = 1233,              -- Maximum acceptable game version
     ENABLE_RAM_LOG = false,          -- Enable/disable RAM logging (true = on, false = off)
-    ENABLE_ACCEPTED_SERVER_JOIN = true -- Enable/disable joining servers from AcceptedServers (true = on, false = off)
+    ENABLE_ACCEPTED_SERVER_JOIN = false -- Enable/disable joining servers from AcceptedServers (true = on, false = off)
 }
 
 -- Service Initialization
