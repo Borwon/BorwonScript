@@ -2,7 +2,8 @@
 local CONFIG = {
     MAX_VERSION = 1233,              -- Maximum acceptable game version
     ENABLE_RAM_LOG = false,          -- Enable/disable RAM logging (true = on, false = off)
-    ENABLE_ACCEPTED_SERVER_JOIN = false -- Enable/disable joining servers from AcceptedServers (true = on, false = off)
+    ENABLE_ACCEPTED_SERVER_JOIN = false, -- Enable/disable joining servers from AcceptedServers (true = on, false = off)
+    ENABLE_SERVER_HOP = false         -- Enable/disable server hopping entirely (true = on, false = off)
 }
 
 -- Service Initialization
@@ -382,31 +383,42 @@ createExecutorFolder("ServerHopData")
 print("🔄 Starting RAM update loop immediately...")
 task.spawn(startRAMUpdateLoop)
 
--- Delay Server Hop by 30 seconds to wait for loading
-print("⏳ Waiting 30 seconds before starting server hop...")
-task.wait(30)
-print("⏳ Wait complete. Proceeding with server hop...")
-
-if CURRENT_VERSION > CONFIG.MAX_VERSION then
-    print("🔍 Current version > MAX_VERSION. Attempting to join accepted server...")
-    local joined = tryJoinAcceptedServers()
-    print("🔎 Join result:", joined and "Success" or "Failed")
-    if not joined then
-        print("🔍 Switching to normal server hop...")
-        task.spawn(findAndHop)
+-- Check if server hopping is enabled
+if not CONFIG.ENABLE_SERVER_HOP then
+    print("🔧 Server hopping disabled. Staying in current server...")
+    if CURRENT_VERSION <= CONFIG.MAX_VERSION then
+        print("✅ Current version <= MAX_VERSION. Saving current server to AcceptedServers...")
+        saveAcceptedServer(game.JobId, CURRENT_VERSION)
     else
-        print("✅ Already joined an accepted server. Checking stability...")
-        wait(10)
-        if game.JobId ~= "7394c826-face-4fae-9cfd-7a52f369a93d" then
-            print("⛔ Disconnected from accepted server. Switching to normal hop...")
-            task.spawn(findAndHop)
-        else
-            print("✅ Server stable. No further hopping needed.")
-        end
+        print("⚠️ Current version > MAX_VERSION, but server hopping is disabled. Staying in current server...")
     end
 else
-    print("✅ Current version <= MAX_VERSION. Saving current server to AcceptedServers...")
-    saveAcceptedServer(game.JobId, CURRENT_VERSION)
+    -- Delay Server Hop by 30 seconds to wait for loading
+    print("⏳ Waiting 30 seconds before starting server hop...")
+    task.wait(30)
+    print("⏳ Wait complete. Proceeding with server hop...")
+
+    if CURRENT_VERSION > CONFIG.MAX_VERSION then
+        print("🔍 Current version > MAX_VERSION. Attempting to join accepted server...")
+        local joined = tryJoinAcceptedServers()
+        print("🔎 Join result:", joined and "Success" or "Failed")
+        if not joined then
+            print("🔍 Switching to normal server hop...")
+            task.spawn(findAndHop)
+        else
+            print("✅ Already joined an accepted server. Checking stability...")
+            wait(10)
+            if game.JobId ~= "7394c826-face-4fae-9cfd-7a52f369a93d" then
+                print("⛔ Disconnected from accepted server. Switching to normal hop...")
+                task.spawn(findAndHop)
+            else
+                print("✅ Server stable. No further hopping needed.")
+            end
+        end
+    else
+        print("✅ Current version <= MAX_VERSION. Saving current server to AcceptedServers...")
+        saveAcceptedServer(game.JobId, CURRENT_VERSION)
+    end
 end
 
 print("🔧 Main execution completed.")
