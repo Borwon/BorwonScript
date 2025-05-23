@@ -1,11 +1,33 @@
 -- Configuration
 local CONFIG = {
-    ENABLE_RAM_LOG = true  -- Enable/disable RAM logging (true = on, false = off)
+    ENABLE_RAM_LOG = false,       -- Enable/disable RAM logging (true = on, false = off)
+    DISPLAY_MONEY = true,        -- Enable/disable displaying money in RAM/console (true = on, false = off)
+    DISPLAY_ITEMS = true,        -- Enable/disable displaying items in RAM/console (true = on, false = off)
+    DISPLAY_TARGET_ITEMS = false  -- Enable/disable displaying specific target items (true = on, false = off)
 }
 
 -- Service Initialization
 local Players = game:GetService("Players")
 local LOCAL_PLAYER = Players.LocalPlayer
+
+-- Load RAMAccount
+local RAMAccount
+local MyAccount
+local success, err = pcall(function()
+    RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
+end)
+if success then
+    print("✅ Successfully loaded RAMAccount")
+else
+    warn("❌ Failed to load RAMAccount: " .. tostring(err))
+end
+
+-- Wait until MyAccount is initialized
+repeat
+    task.wait()
+    MyAccount = RAMAccount and RAMAccount.new(LOCAL_PLAYER.Name)
+until MyAccount
+print("✅ MyAccount initialized successfully for player: " .. LOCAL_PLAYER.Name)
 
 -- Utility Functions
 local function log(type, message, isRAMLog)
@@ -42,7 +64,7 @@ end
 
 local function getTargetItemsSummary()
     local summary = {}
-    local backpack = game:GetService("Players").LocalPlayer:FindFirstChild("Backpack")
+    local backpack = LOCAL_PLAYER:FindFirstChild("Backpack")
     if not backpack then
         log("error", "No Backpack found", true)
         return "No Items"
@@ -51,6 +73,12 @@ local function getTargetItemsSummary()
     log("debug", "Raw items in Backpack:", true)
     for _, item in ipairs(backpack:GetChildren()) do
         log("debug", "- " .. item.Name, true)
+    end
+
+    -- Only process target items if DISPLAY_TARGET_ITEMS is true
+    if not CONFIG.DISPLAY_TARGET_ITEMS then
+        log("info", "Target items display disabled", true)
+        return "Target items display disabled"
     end
 
     local targetItems = {"Candy Blossom Seed", "Night Seed Pack", "Night Egg", "Bug Egg"}
@@ -91,31 +119,13 @@ end
 local function startRAMUpdateLoop()
     log("info", "Starting RAM update loop", true)
     
-    -- Wait a bit for game to fully load
-    log("info", "Waiting 5 seconds for game to load before first RAM update...", true)
-    task.wait(5)
-
-    -- Check if MyAccount is defined and has the required methods
-    if not MyAccount then
-        log("error", "MyAccount is not defined. RAM update cannot proceed.", true)
-        return
-    end
-
-    log("debug", "MyAccount type: " .. typeof(MyAccount), true)
-    if typeof(MyAccount) ~= "table" and typeof(MyAccount) ~= "Instance" then
-        log("error", "MyAccount is not a valid type (expected table or Instance).", true)
-        return
-    end
-
-    -- Check if SetAlias and SetDescription exist
-    if not MyAccount.SetAlias or not MyAccount.SetDescription then
-        log("error", "MyAccount does not have SetAlias or SetDescription methods.", true)
-        return
-    end
+    -- Wait longer for game to fully load
+    log("info", "Waiting 10 seconds for game to load before first RAM update...", true)
+    task.wait(10)
 
     while true do
         local sheckles = 0
-        local leaderstats = game:GetService("Players").LocalPlayer:FindFirstChild("leaderstats")
+        local leaderstats = LOCAL_PLAYER:FindFirstChild("leaderstats")
         if leaderstats then
             local shecklesObj = leaderstats:FindFirstChild("Sheckles")
             if shecklesObj then
@@ -129,20 +139,39 @@ local function startRAMUpdateLoop()
         end
         local formatted_money = formatMoney(sheckles)
 
-        local items_summary = getTargetItemsSummary()
+        local items_summary = CONFIG.DISPLAY_ITEMS and getTargetItemsSummary() or "Items display disabled"
+
+        -- Prepare output based on config
+        local output = {}
+        if CONFIG.DISPLAY_MONEY then
+            table.insert(output, "Money: " .. formatted_money)
+        end
+        if CONFIG.DISPLAY_ITEMS then
+            table.insert(output, "Items: " .. items_summary)
+        end
+        local full_output = table.concat(output, ", ")
 
         local update_success, update_err = pcall(function()
-            MyAccount:SetAlias("Money: " .. formatted_money)
-            MyAccount:SetDescription(items_summary)
+            if CONFIG.DISPLAY_MONEY then
+                MyAccount:SetAlias("Money: " .. formatted_money)
+            else
+                MyAccount:SetAlias("Money display disabled")
+            end
+            if CONFIG.DISPLAY_ITEMS then
+                MyAccount:SetDescription(items_summary)
+            else
+                MyAccount:SetDescription("Items display disabled")
+            end
         end)
 
         if update_success then
-            log("info", "RAMAccount updated - Money: " .. formatted_money .. ", Items: " .. items_summary, true)
+            log("info", "RAMAccount updated - " .. full_output, true)
         else
             log("error", "Failed to update RAMAccount: " .. tostring(update_err), true)
+            log("info", "Falling back to console output - " .. full_output, true)
         end
 
-        task.wait(60)
+        task.wait(60) -- Update every 60 seconds
     end
 end
 
