@@ -1,10 +1,10 @@
 -- Configuration
 local CONFIG = {
     ENABLE_RAM_LOG = false,       -- Enable/disable RAM logging (true = on, false = off)
-    ENABLE_RAM_UPDATE = true,     -- Enable/disable RAM updating (true = on, false = off)
+    ENABLE_RAM_UPDATE = false,     -- Enable/disable RAM updating (true = on, false = off)
     DISPLAY_MONEY = true,        -- Enable/disable displaying money in RAM/console (true = on, false = off)
     DISPLAY_ITEMS = true,        -- Enable/disable displaying items in RAM/console (true = on, false = off)
-    DISPLAY_TARGET_ITEMS = false  -- Enable/disable displaying specific target items (true = on, false = off)
+    DISPLAY_TARGET_ITEMS = true  -- Enable/disable displaying specific target items (true = on, false = off)
 }
 
 -- Service Initialization
