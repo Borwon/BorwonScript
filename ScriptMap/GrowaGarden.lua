@@ -1,6 +1,7 @@
 -- Configuration
 local CONFIG = {
     ENABLE_RAM_LOG = false,       -- Enable/disable RAM logging (true = on, false = off)
+    ENABLE_RAM_UPDATE = true,     -- Enable/disable RAM updating (true = on, false = off)
     DISPLAY_MONEY = true,        -- Enable/disable displaying money in RAM/console (true = on, false = off)
     DISPLAY_ITEMS = true,        -- Enable/disable displaying items in RAM/console (true = on, false = off)
     DISPLAY_TARGET_ITEMS = false  -- Enable/disable displaying specific target items (true = on, false = off)
@@ -28,6 +29,16 @@ repeat
     MyAccount = RAMAccount and RAMAccount.new(LOCAL_PLAYER.Name)
 until MyAccount
 print("✅ MyAccount initialized successfully for player: " .. LOCAL_PLAYER.Name)
+
+-- Test MyAccount functionality
+local test_success, test_err = pcall(function()
+    MyAccount:SetAlias("Test Alias")
+end)
+if test_success then
+    print("✅ MyAccount test successful")
+else
+    warn("❌ MyAccount test failed: " .. tostring(test_err))
+end
 
 -- Utility Functions
 local function log(type, message, isRAMLog)
@@ -73,12 +84,6 @@ local function getTargetItemsSummary()
     log("debug", "Raw items in Backpack:", true)
     for _, item in ipairs(backpack:GetChildren()) do
         log("debug", "- " .. item.Name, true)
-    end
-
-    -- Only process target items if DISPLAY_TARGET_ITEMS is true
-    if not CONFIG.DISPLAY_TARGET_ITEMS then
-        log("info", "Target items display disabled", true)
-        return "Target items display disabled"
     end
 
     local targetItems = {"Candy Blossom Seed", "Night Seed Pack", "Night Egg", "Bug Egg"}
@@ -139,29 +144,25 @@ local function startRAMUpdateLoop()
         end
         local formatted_money = formatMoney(sheckles)
 
-        local items_summary = CONFIG.DISPLAY_ITEMS and getTargetItemsSummary() or "Items display disabled"
+        local items_summary = getTargetItemsSummary() -- Always get full items summary
 
-        -- Prepare output based on config
-        local output = {}
-        if CONFIG.DISPLAY_MONEY then
-            table.insert(output, "Money: " .. formatted_money)
+        -- Prepare output based on ENABLE_RAM_UPDATE
+        local alias_text, desc_text
+        if CONFIG.ENABLE_RAM_UPDATE then
+            -- Use configured display settings
+            alias_text = CONFIG.DISPLAY_MONEY and "Money: " .. formatted_money or "Money display disabled"
+            desc_text = CONFIG.DISPLAY_ITEMS and "Items: " .. items_summary or "Items display disabled"
+        else
+            -- Show all data when RAM update is disabled
+            alias_text = "Money: " .. formatted_money
+            desc_text = "Items: " .. items_summary
         end
-        if CONFIG.DISPLAY_ITEMS then
-            table.insert(output, "Items: " .. items_summary)
-        end
-        local full_output = table.concat(output, ", ")
+
+        local full_output = alias_text .. ", " .. desc_text
 
         local update_success, update_err = pcall(function()
-            if CONFIG.DISPLAY_MONEY then
-                MyAccount:SetAlias("Money: " .. formatted_money)
-            else
-                MyAccount:SetAlias("Money display disabled")
-            end
-            if CONFIG.DISPLAY_ITEMS then
-                MyAccount:SetDescription(items_summary)
-            else
-                MyAccount:SetDescription("Items display disabled")
-            end
+            MyAccount:SetAlias(alias_text)
+            MyAccount:SetDescription(desc_text)
         end)
 
         if update_success then
