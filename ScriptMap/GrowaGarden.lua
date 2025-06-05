@@ -59,30 +59,19 @@ local function getTargetItemsSummary()
         return "No Items"
     end
 
-    local targetItems = {"Candy Blossom Seed", "Night Seed Pack", "Night Egg", "Bug Egg", "Moon Blossom Seed"}
-    local targetSet = {}
-    for _, target in ipairs(targetItems) do
-        targetSet[cleanItemName(target)] = true
-    end
-
+    -- ดึงชื่อไอเทมทั้งหมดใน Backpack
     for _, item in ipairs(backpack:GetChildren()) do
-        local cleanedName = cleanItemName(item.Name)
-        for targetCleaned in pairs(targetSet) do
-            if cleanedName:find(targetCleaned) or targetCleaned:find(cleanedName) then
-                local amount = ""
-                if item:FindFirstChild("Amount") and tonumber(item.Amount.Value) then
-                    amount = " x" .. tostring(item.Amount.Value)
-                elseif item:FindFirstChild("Value") and tonumber(item.Value.Value) then
-                    amount = " x" .. tostring(item.Value.Value)
-                end
-                table.insert(summary, item.Name .. amount)
-                break
-            end
+        local amount = ""
+        if item:FindFirstChild("Amount") and tonumber(item.Amount.Value) then
+            amount = " x" .. tostring(item.Amount.Value)
+        elseif item:FindFirstChild("Value") and tonumber(item.Value.Value) then
+            amount = " x" .. tostring(item.Value.Value)
         end
+        table.insert(summary, item.Name .. amount)
     end
 
     if #summary == 0 then
-        return "No Candy Blossom Seed, Night Seed Pack, Night Egg, Bug Egg, or Moon Blossom Seed"
+        return "No Items"
     end
     return table.concat(summary, ", ")
 end
