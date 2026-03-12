@@ -1,0 +1,101 @@
+if not game:IsLoaded() then
+    game.Loaded:Wait()
+end
+
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+
+-- State
+local gpuEnabled = false -- เริ่มต้นปิด 3D Rendering
+
+-- === สร้าง UI ===
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "DisableGPU_UI"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- Frame หลัก
+local Frame = Instance.new("Frame")
+Frame.Size = UDim2.new(0, 180, 0, 50)
+Frame.Position = UDim2.new(0, 10, 0, 10)
+Frame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+Frame.BorderSizePixel = 0
+Frame.Active = true
+Frame.Draggable = true
+Frame.Parent = ScreenGui
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = Frame
+
+-- Label "3D Render"
+local Label = Instance.new("TextLabel")
+Label.Size = UDim2.new(0, 100, 1, 0)
+Label.Position = UDim2.new(0, 10, 0, 0)
+Label.BackgroundTransparency = 1
+Label.Text = "3D Render"
+Label.TextColor3 = Color3.fromRGB(220, 220, 220)
+Label.TextSize = 14
+Label.Font = Enum.Font.GothamBold
+Label.TextXAlignment = Enum.TextXAlignment.Left
+Label.Parent = Frame
+
+-- Toggle Background
+local ToggleBG = Instance.new("Frame")
+ToggleBG.Size = UDim2.new(0, 46, 0, 26)
+ToggleBG.Position = UDim2.new(1, -56, 0.5, -13)
+ToggleBG.BackgroundColor3 = Color3.fromRGB(200, 50, 50) -- เริ่มต้น OFF (แดง)
+ToggleBG.BorderSizePixel = 0
+ToggleBG.Parent = Frame
+
+local ToggleBGCorner = Instance.new("UICorner")
+ToggleBGCorner.CornerRadius = UDim.new(1, 0)
+ToggleBGCorner.Parent = ToggleBG
+
+-- Toggle Knob (ปุ่มกลม)
+local Knob = Instance.new("Frame")
+Knob.Size = UDim2.new(0, 20, 0, 20)
+Knob.Position = UDim2.new(0, 3, 0.5, -10) -- ตำแหน่ง OFF (ด้านซ้าย)
+Knob.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Knob.BorderSizePixel = 0
+Knob.Parent = ToggleBG
+
+local KnobCorner = Instance.new("UICorner")
+KnobCorner.CornerRadius = UDim.new(1, 0)
+KnobCorner.Parent = Knob
+
+-- === ฟังก์ชัน Toggle ===
+local TweenService = game:GetService("TweenService")
+local tweenInfo = TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+
+local function setToggle(enabled)
+    gpuEnabled = enabled
+    RunService:Set3dRenderingEnabled(gpuEnabled)
+
+    if gpuEnabled then
+        -- สถานะ ON: เขียว, knob ไปขวา
+        TweenService:Create(ToggleBG, tweenInfo, {BackgroundColor3 = Color3.fromRGB(0, 200, 100)}):Play()
+        TweenService:Create(Knob, tweenInfo, {Position = UDim2.new(1, -23, 0.5, -10)}):Play()
+        Label.Text = "3D Render"
+        Label.TextColor3 = Color3.fromRGB(220, 220, 220)
+    else
+        -- สถานะ OFF: แดง, knob ไปซ้าย
+        TweenService:Create(ToggleBG, tweenInfo, {BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
+        TweenService:Create(Knob, tweenInfo, {Position = UDim2.new(0, 3, 0.5, -10)}):Play()
+        Label.Text = "3D Render"
+        Label.TextColor3 = Color3.fromRGB(150, 150, 150)
+    end
+end
+
+-- คลิก Toggle
+ToggleBG.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        setToggle(not gpuEnabled)
+    end
+end)
+
+-- เริ่มต้นในสถานะ OFF
+setToggle(false)
