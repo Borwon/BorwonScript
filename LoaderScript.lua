@@ -4,6 +4,10 @@ getgenv().HorstConfig = {
     ["EnableLog"] = true,
     ["Whitescreen"] = false,
     ["EnableAddFriends"] = false,
+    ["LockFps"] = {
+        ["EnableLockFps"] = false,
+        ["LockFpsAmount"] = 30 
+    }
 }
 
 -- โหลด Horst หลักก่อนเสมอ

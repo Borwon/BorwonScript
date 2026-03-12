@@ -97,13 +97,15 @@ while true do
     if success and (gems or level) then
         local formatted_gems = "N/A"
         if gems then
-            local num = tonumber(gems:gsub("[^%d%.]+", ""):gsub("%.+", "."))
+            local cleaned = gems:gsub("[^%d%.]+", ""):gsub("%.+", ".")
+            local num = tonumber(cleaned)
             if num then formatted_gems = FormatCoins(num) end
         end
 
         local formatted_level = "N/A"
         if level then
-            local num = tonumber(level:gsub("[^%d%.]+", ""):gsub("%.+", "."))
+            local cleaned = level:gsub("[^%d%.]+", ""):gsub("%.+", ".")
+            local num = tonumber(cleaned)
             if num then formatted_level = tostring(num) end
         end
 
