@@ -1,56 +1,55 @@
-if not game:IsLoaded() then
-    game.Loaded:Wait()
-end
+-- 99night.lua — ScriptMap สำหรับ 99night
+-- ใช้ _G.Horst_SetDescription แสดง Diamonds
+-- ข้อมูล: PlayerGui.Interface.DiamondCount.Count.ContentText
 
--- รอให้ข้อมูลในเกมโหลดเล็กน้อย
+repeat task.wait() until game:IsLoaded()
 task.wait(5)
 
-local RAMAccount = loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Roblox-Account-Manager/master/RAMAccount.lua'))()
-local MyAccount 
+-- Logging
+local function log(logType, message)
+    local timeStr = os.date("%H:%M:%S")
+    if logType == "info" then
+        print("[" .. timeStr .. "] ℹ️ " .. message)
+    elseif logType == "success" then
+        print("[" .. timeStr .. "] ✅ " .. message)
+    elseif logType == "warning" then
+        warn("[" .. timeStr .. "] ⚠️ " .. message)
+    elseif logType == "error" then
+        warn("[" .. timeStr .. "] ❌ " .. message)
+    end
+end
 
--- รอจนกว่าจะสร้างบัญชีได้
-repeat task.wait() 
-    MyAccount = RAMAccount.new(game:GetService("Players").LocalPlayer.Name)
-until MyAccount
+log("info", "99night Script Started")
 
--- หากบัญชีพร้อมใช้งาน
-if MyAccount then
-    task.spawn(function()
-        local player = game:GetService("Players").LocalPlayer
-        local playerGui = player:WaitForChild("PlayerGui", 10)
-        local interface = playerGui and playerGui:WaitForChild("Interface", 10)
-        local diamondCountContainer = interface and interface:WaitForChild("DiamondCount", 10)
-        local countLabel = diamondCountContainer and diamondCountContainer:WaitForChild("Count", 10)
+local player = game:GetService("Players").LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui", 15)
+local interface = playerGui and playerGui:WaitForChild("Interface", 15)
+local diamondCountContainer = interface and interface:WaitForChild("DiamondCount", 15)
+local countLabel = diamondCountContainer and diamondCountContainer:WaitForChild("Count", 15)
 
-        if countLabel then
-            print("[LOG] Script loaded successfully")
+if not countLabel then
+    log("error", "Diamond Count Label not found — script terminated.")
+    return
+end
 
-            while true do
-                local currentDiamonds
-                local success, err = pcall(function()
-                    currentDiamonds = countLabel.ContentText
-                end)
+log("success", "Script loaded successfully")
 
-                if success and currentDiamonds then
-                    print("[LOG] Data fetched successfully:", currentDiamonds)
-                    print(string.format("[LOG] Updating account alias: Diamonds : %s", currentDiamonds or "N/A"))
+local UPDATE_INTERVAL = 10
 
-                    local update_success, update_err = pcall(function()
-                        MyAccount:SetAlias(string.format("Diamonds : %s", currentDiamonds or "N/A"))
-                        MyAccount:SetDescription("")
-                    end)
-
-                    if not update_success then
-                        warn("Error updating account: " .. tostring(update_err))
-                    end
-                else
-                    warn("[LOG] Data fetch failed because: " .. tostring(err))
-                end
-
-                task.wait(10)
-            end
-        else
-            warn("[LOG] Diamond Count Label not found in PlayerGui or took too long to load.")
-        end
+while true do
+    local currentDiamonds
+    local success, err = pcall(function()
+        currentDiamonds = countLabel.ContentText
     end)
+
+    if success and currentDiamonds then
+        log("info", "Diamonds: " .. tostring(currentDiamonds))
+        local messages = string.format("Diamonds: %s", currentDiamonds)
+        _G.Horst_SetDescription(messages)
+        log("success", "Description updated: " .. messages)
+    else
+        log("error", "Data fetch failed: " .. tostring(err))
+    end
+
+    task.wait(UPDATE_INTERVAL)
 end
