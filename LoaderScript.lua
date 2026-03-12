@@ -14,10 +14,10 @@ loadstring(game:HttpGet("https://raw.githubusercontent.com/HorstSpaceX/last_upda
 -- TODO: เปลี่ยน PlaceId และ URL ให้ตรงกับเกมที่ต้องการ
 -- =============================================================
 local placeScripts = {
-     [77747658251236] = "https://raw.githubusercontent.com/<user>/<repo>/main/ScriptMap/99night.lua",
-     [14890802310] = "https://raw.githubusercontent.com/<user>/<repo>/main/ScriptMap/sailorpiece.lua",
-     [90738171169572] = "https://raw.githubusercontent.com/<user>/<repo>/main/ScriptMap/BizarreLineage.lua",
-     [79546208627805] = "https://raw.githubusercontent.com/<user>/<repo>/main/ScriptMap/atsgems.lua",
+     [77747658251236] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/sailorpiece.lua",
+     [14890802310] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BizarreLineage.lua",
+     [90738171169572] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/atsgems.lua",
+     [79546208627805] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/99night.lua",
 }
 -- =============================================================
 
