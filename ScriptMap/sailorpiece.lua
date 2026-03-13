@@ -1,6 +1,6 @@
 -- sailorpiece.lua — ScriptMap สำหรับ Sailor Piece
--- ใช้ _G.Horst_SetDescription แสดง Level, Gems, Units
--- ข้อมูล: player.Data.Gems, player.Data.Level, workspace.PlayerUnit
+-- ใช้ _G.Horst_SetDescription แสดง Level, Gems
+-- ข้อมูล: player.Data.Gems, player.Data.Level
 
 -- ฟังก์ชันแปลงตัวเลขให้มีหน่วย (k / M)
 local function FormatCoins(value)
@@ -13,22 +13,7 @@ local function FormatCoins(value)
     end
 end
 
--- ดึงชื่อ Units ของผู้เล่น
-local function GetUnitNames()
-    local playerName = game:GetService("Players").LocalPlayer.Name
-    local playerUnits = workspace:FindFirstChild("PlayerUnit") and workspace.PlayerUnit:FindFirstChild(playerName)
-    if not playerUnits then
-        return "No Units"
-    end
-    local unitNames = {}
-    for _, unit in ipairs(playerUnits:GetChildren()) do
-        local unitName = unit.Name:match("([^/]+)")
-        if unitName then
-            table.insert(unitNames, unitName)
-        end
-    end
-    return #unitNames > 0 and table.concat(unitNames, ", ") or "No Units"
-end
+
 
 -- Logging
 local function log(logType, message)
@@ -103,18 +88,32 @@ while true do
         end
 
         local formatted_level = "N/A"
+        local raw_level = nil
         if level then
             local cleaned = level:gsub("[^%d%.]+", ""):gsub("%.+", ".")
             local num = tonumber(cleaned)
-            if num then formatted_level = tostring(num) end
+            if num then
+                formatted_level = tostring(num)
+                raw_level = num
+            end
         end
 
-        local unitNames = GetUnitNames()
-
         -- Horst ห้ามใช้ | และ ; ในข้อความ
-        local messages = string.format("Lv: %s - Gems: %s - Units: %s", formatted_level, formatted_gems, unitNames)
+        local messages = string.format("Lv: %s - Gems: %s", formatted_level, formatted_gems)
         _G.Horst_SetDescription(messages)
         log("success", "Description updated: " .. messages)
+
+        -- ส่ง AccountChangeDone เฉพาะเมื่อ Level >= 11500
+        if raw_level and raw_level >= 11500 then
+            local ok, doneErr = _G.Horst_AccountChangeDone()
+            if ok then
+                log("success", "AccountChangeDone sent successfully! (Lv " .. raw_level .. " >= 11500)")
+            else
+                log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
+            end
+        else
+            log("info", "Level " .. tostring(raw_level or "N/A") .. " — not yet 11500, skipping AccountChangeDone")
+        end
     else
         log("error", "Error fetching data: " .. tostring(err))
     end
