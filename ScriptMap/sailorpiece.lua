@@ -108,6 +108,7 @@ while true do
             local ok, doneErr = _G.Horst_AccountChangeDone()
             if ok then
                 log("success", "AccountChangeDone sent successfully! (Lv " .. raw_level .. " >= 11500)")
+                break -- หยุดลูปทันที ไม่ให้ SetDescription วนซ้ำ reset status กลับ
             else
                 log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
             end
