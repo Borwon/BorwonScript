@@ -22,6 +22,7 @@ local placeScripts = {
      [14890802310] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BizarreLineage.lua",
      [90738171169572] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/atsgems.lua",
      [79546208627805] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/99night.lua",
+     [74747090658891] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BizarreLineage.lua",
 }
 -- =============================================================
 
