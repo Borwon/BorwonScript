@@ -1,10 +1,45 @@
 -- sailorpiece.lua — ScriptMap สำหรับ Sailor Piece
--- ใช้ _G.Horst_SetDescription แสดง Level, Money, Gems, Race, Clan, Haki
--- ข้อมูล: player.Data.Gems, player.Data.Level, player.Data.Money
---         player:GetAttribute("CurrentRace"), player:GetAttribute("CurrentClan")
+-- ใช้ _G.Horst_SetDescription แสดง Level, Money, Gems, Race, Clan, Haki, Swords
+-- ข้อมูล: player.Data (Gems, Level, Money)
+--         player:GetAttribute (CurrentRace, CurrentClan)
 --         PlayerGui.StatsPanelUI (HakiLevel, ObservationHakiLevel, ConquerorHakiExperience)
+--         ReplicatedStorage.Remotes (RequestInventory, UpdateInventory)
 
--- ฟังก์ชันแปลงตัวเลขให้มีหน่วย (k / M)
+-- ════════════════════════════════════════
+--  CONFIG
+-- ════════════════════════════════════════
+
+-- Sword ที่ไม่ต้องแสดง
+local HIDDEN_SWORDS = { ["Katana"] = true, ["Dark Blade"] = true }
+
+-- Race → Emoji
+local RACE_EMOJI = {
+    Human      = "👤",
+    Fishman    = "🐟",
+    Mink       = "🐾",
+    Skypiean   = "🕊️",
+    Lunarian   = "🔥",
+    Vessel     = "👁️",
+    Limitless  = "♾️",
+    Shinigami  = "💀",
+    Shadowburn = "🌑",
+    Hollow     = "🕳️",
+    Oni        = "👹",
+    Kitsune    = "🦊",
+    Leviathan  = "🌊",
+    Slime      = "🟢",
+    Servant    = "🔱",
+}
+
+-- Clan → Emoji
+local CLAN_EMOJI = {
+    None = "🚫",
+}
+
+-- ════════════════════════════════════════
+--  UTILS
+-- ════════════════════════════════════════
+
 local function FormatCoins(value)
     if value >= 1e6 then
         return string.format("%.1fM", value / 1e6)
@@ -15,59 +50,61 @@ local function FormatCoins(value)
     end
 end
 
--- ดึงตัวเลข Level จาก Text เช่น "Haki Lv. 35" → 35
 local function ExtractLevel(text)
     if not text then return nil end
-    -- จับตัวเลขหลังสุดใน string (ครอบคลุม "Lv. 35", "Level: 1", ฯลฯ)
-    local num = tonumber(text:match("(%d+)%s*$"))
-    return num
+    return tonumber(text:match("(%d+)%s*$"))
 end
 
--- แปลง Level เป็น Emoji (nil หรือ <= 1 = ❌, >= 2 = ✅)
 local function HakiEmoji(text)
     local lv = ExtractLevel(text)
-    if lv and lv >= 2 then
-        return "✅"
-    else
-        return "❌"
+    return (lv and lv >= 2) and "✅" or "❌"
+end
+
+local function RaceLabel(race)
+    local emoji = RACE_EMOJI[race] or "❓"
+    return emoji .. race
+end
+
+local function ClanLabel(clan)
+    local emoji = CLAN_EMOJI[clan] or "⚔️"
+    return emoji .. clan
+end
+
+local function log(logType, message)
+    local t = os.date("%H:%M:%S")
+    if logType == "info"    then print("[" .. t .. "] ℹ️ "  .. message)
+    elseif logType == "success" then print("[" .. t .. "] ✅ " .. message)
+    elseif logType == "warning" then warn( "[" .. t .. "] ⚠️ "  .. message)
+    elseif logType == "error"   then warn( "[" .. t .. "] ❌ " .. message)
     end
 end
 
--- Logging
-local function log(logType, message)
-    local timeStr = os.date("%H:%M:%S")
-    if logType == "info" then
-        print("[" .. timeStr .. "] ℹ️ " .. message)
-    elseif logType == "success" then
-        print("[" .. timeStr .. "] ✅ " .. message)
-    elseif logType == "warning" then
-        warn("[" .. timeStr .. "] ⚠️ " .. message)
-    elseif logType == "error" then
-        warn("[" .. timeStr .. "] ❌ " .. message)
-    end
-end
+-- ════════════════════════════════════════
+--  INIT
+-- ════════════════════════════════════════
 
 log("info", "Sailor Piece Script Started")
 
--- รอให้ game โหลดและ LocalPlayer พร้อม
 repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game:GetService("Players").LocalPlayer
 repeat task.wait() until _G.Horst_SetDescription
 
--- รอให้ข้อมูลโหลด
+local Players  = game:GetService("Players")
+local RepStore = game:GetService("ReplicatedStorage")
+
 local function WaitForDataToLoad()
-    local player = game:GetService("Players").LocalPlayer
-    local dataFolder, gemsObject, levelObject, moneyObject
+    local player = Players.LocalPlayer
+    local dataFolder, gemsObj, levelObj, moneyObj
     for i = 1, 3 do
-        dataFolder  = player:WaitForChild("Data", 10)
-        gemsObject  = dataFolder and dataFolder:FindFirstChild("Gems")
-        levelObject = dataFolder and dataFolder:FindFirstChild("Level")
-        moneyObject = dataFolder and dataFolder:FindFirstChild("Money")
-        if gemsObject and levelObject and moneyObject then break end
+        dataFolder = player:WaitForChild("Data", 10)
+        gemsObj    = dataFolder and dataFolder:FindFirstChild("Gems")
+        levelObj   = dataFolder and dataFolder:FindFirstChild("Level")
+        moneyObj   = dataFolder and dataFolder:FindFirstChild("Money")
+        if gemsObj and levelObj and moneyObj then break end
         log("warning", "Data not loaded yet, retrying (" .. i .. "/3)...")
         task.wait(5)
     end
-    if not (gemsObject and levelObject and moneyObject) then
+    if not (gemsObj and levelObj and moneyObj) then
         log("error", "Failed to load Gems/Level/Money after retries.")
         return false
     end
@@ -81,7 +118,57 @@ if not WaitForDataToLoad() then
 end
 
 log("info", "Waiting for data initialization...")
-task.wait(20)
+task.wait(5)
+
+-- ════════════════════════════════════════
+--  INVENTORY (Sword) — ดึงผ่าน Remote
+-- ════════════════════════════════════════
+
+local inventoryData = {}
+
+local function FetchInventory()
+    local conn
+    conn = RepStore.Remotes.UpdateInventory.OnClientEvent:Connect(function(category, items)
+        inventoryData[category] = items
+    end)
+    RepStore.Remotes.RequestInventory:FireServer()
+    task.wait(2)
+    conn:Disconnect()
+end
+
+local function GetSwordList()
+    local swords = {}
+    for _, item in pairs(inventoryData["Sword"] or {}) do
+        if type(item) == "table" and item.name then
+            if not HIDDEN_SWORDS[item.name] then
+                table.insert(swords, item.name)
+            end
+        end
+    end
+    return #swords > 0 and table.concat(swords, ", ") or "None"
+end
+
+--[[ Keys — DISABLED (เปิดใช้งานครั้งหน้า)
+local WANTED_KEYS = {"Boss Key", "Rush Key", "Dungeon Key", "Boss Ticket", "Slime Key", "Limitless Key", "Malevolent Key"}
+
+local function GetKeyList()
+    local parts = {}
+    for _, item in pairs(inventoryData["Items"] or {}) do
+        if type(item) == "table" then
+            for _, wanted in ipairs(WANTED_KEYS) do
+                if item.name == wanted then
+                    table.insert(parts, item.name .. " x" .. tostring(item.quantity))
+                end
+            end
+        end
+    end
+    return #parts > 0 and table.concat(parts, ", ") or "None"
+end
+--]]
+
+-- ════════════════════════════════════════
+--  MAIN LOOP
+-- ════════════════════════════════════════
 
 local UPDATE_INTERVAL = 30
 
@@ -90,7 +177,7 @@ while true do
     local hakiText, obsHakiText, conqHakiText
 
     local success, err = pcall(function()
-        local player = game:GetService("Players").LocalPlayer
+        local player     = Players.LocalPlayer
         local dataFolder = player:FindFirstChild("Data")
         if not dataFolder then return end
 
@@ -102,97 +189,78 @@ while true do
         if levelObj then level = tostring(levelObj.Value or levelObj.Text or "0") end
         if moneyObj then money = tostring(moneyObj.Value or moneyObj.Text or "0") end
 
-        -- Attribute จาก player โดยตรง
         race = player:GetAttribute("CurrentRace") or "None"
         clan = player:GetAttribute("CurrentClan") or "None"
 
-        -- ดึง Haki Text จาก GUI
-        local gui       = player:FindFirstChild("PlayerGui")
-        local statsUI   = gui       and gui:FindFirstChild("StatsPanelUI")
-        local mainFrame = statsUI   and statsUI:FindFirstChild("MainFrame")
-        local frame     = mainFrame and mainFrame:FindFirstChild("Frame")
-        local content   = frame     and frame:FindFirstChild("Content")
-        local page2     = content   and content:FindFirstChild("Page2")
-        local holder    = page2     and page2:FindFirstChild("StatsHolder")
+        -- Haki จาก GUI
+        local gui    = player:FindFirstChild("PlayerGui")
+        local holder = gui
+            and gui:FindFirstChild("StatsPanelUI")
+            and gui.StatsPanelUI:FindFirstChild("MainFrame")
+            and gui.StatsPanelUI.MainFrame:FindFirstChild("Frame")
+            and gui.StatsPanelUI.MainFrame.Frame:FindFirstChild("Content")
+            and gui.StatsPanelUI.MainFrame.Frame.Content:FindFirstChild("Page2")
+            and gui.StatsPanelUI.MainFrame.Frame.Content.Page2:FindFirstChild("StatsHolder")
 
         if holder then
-            local hakiFrame = holder:FindFirstChild("HakiProgressionFrame")
-            local obsFrame  = holder:FindFirstChild("ObservationHakiProgressionFrame")
-            local conqFrame = holder:FindFirstChild("ConquerorHakiProgressionFrame")
-
-            local hakiTxts = hakiFrame and hakiFrame:FindFirstChild("Txts")
-            local obsTxts  = obsFrame  and obsFrame:FindFirstChild("Txts")
-            local conqTxts = conqFrame and conqFrame:FindFirstChild("Txts")
-
-            local hakiLvObj  = hakiTxts  and hakiTxts:FindFirstChild("HakiLevel")
-            local obsLvObj   = obsTxts   and obsTxts:FindFirstChild("ObservationHakiLevel")
-            local conqExpObj = conqTxts  and conqTxts:FindFirstChild("ConquerorHakiExperience")
-
-            if hakiLvObj  then hakiText     = hakiLvObj.Text  end
-            if obsLvObj   then obsHakiText  = obsLvObj.Text   end
-            if conqExpObj then conqHakiText = conqExpObj.Text end
+            local function getText(frameName, childName)
+                local f = holder:FindFirstChild(frameName)
+                local t = f and f:FindFirstChild("Txts")
+                local c = t and t:FindFirstChild(childName)
+                return c and c.Text or nil
+            end
+            hakiText     = getText("HakiProgressionFrame",        "HakiLevel")
+            obsHakiText  = getText("ObservationHakiProgressionFrame", "ObservationHakiLevel")
+            conqHakiText = getText("ConquerorHakiProgressionFrame",   "ConquerorHakiExperience")
         end
     end)
 
     if success and (gems or level or money) then
 
-        -- Format Gems
-        local formatted_gems = "N/A"
-        if gems then
-            local cleaned = gems:gsub("[^%d%.]+", ""):gsub("%.+", ".")
-            local num = tonumber(cleaned)
-            if num then formatted_gems = FormatCoins(num) end
+        local function parseNum(str)
+            if not str or str == "" then return nil end
+            local cleaned = str:gsub("[^%d]+", "")
+            if cleaned == "" then return nil end
+            return tonumber(cleaned)
         end
 
-        -- Format Money
-        local formatted_money = "N/A"
-        if money then
-            local cleaned = money:gsub("[^%d%.]+", ""):gsub("%.+", ".")
-            local num = tonumber(cleaned)
-            if num then formatted_money = FormatCoins(num) end
-        end
+        local gemsNum  = parseNum(gems)
+        local moneyNum = parseNum(money)
+        local levelNum = parseNum(level)
 
-        -- Format Level
-        local formatted_level = "N/A"
-        local raw_level = nil
-        if level then
-            local cleaned = level:gsub("[^%d%.]+", ""):gsub("%.+", ".")
-            local num = tonumber(cleaned)
-            if num then
-                formatted_level = tostring(num)
-                raw_level = num
-            end
-        end
+        local fmt_gems  = gemsNum  and FormatCoins(gemsNum)  or "N/A"
+        local fmt_money = moneyNum and FormatCoins(moneyNum) or "N/A"
+        local fmt_level = levelNum and tostring(levelNum)    or "N/A"
 
-        -- Haki Emoji
-        local hakiEmoji = HakiEmoji(hakiText)
-        local obsEmoji  = HakiEmoji(obsHakiText)
-        local conqEmoji = HakiEmoji(conqHakiText)
+        -- ดึง Inventory ทุก loop
+        FetchInventory()
+        local swordList = GetSwordList()
 
-        -- Horst ห้ามใช้ | และ ; ในข้อความ
         local messages = string.format(
-            "⭐ Lv.%s, 💵 Money.%s, 💠 Gems.%s, Race.[%s], Clan.[%s], Haki:%s Obs:%s Conq:%s",
-            formatted_level, formatted_money, formatted_gems,
-            race or "None", clan or "None",
-            hakiEmoji, obsEmoji, conqEmoji
+            "⭐ Lv.%s, 💵 %s, 💠 %s, %s, %s, Haki:%s Obs:%s Conq:%s, 🗡️ Swords.[%s]",
+            fmt_level, fmt_money, fmt_gems,
+            RaceLabel(race), ClanLabel(clan),
+            HakiEmoji(hakiText), HakiEmoji(obsHakiText), HakiEmoji(conqHakiText),
+            swordList
         )
 
         _G.Horst_SetDescription(messages)
         log("success", "Description updated: " .. messages)
 
-        -- [DISABLED] ส่ง AccountChangeDone เฉพาะเมื่อ Level >= 11500
+        -- [DISABLED] AccountChangeDone
         --[[ AccountChangeDone disabled
-        if raw_level and raw_level >= 11500 then
+        if levelNum and levelNum >= 11500 then
             local ok, doneErr = _G.Horst_AccountChangeDone()
             if ok then
-                log("success", "AccountChangeDone sent successfully! (Lv " .. raw_level .. " >= 11500)")
-                break -- หยุดลูปทันที ไม่ให้ SetDescription วนซ้ำ reset status กลับ
+                log("success", "AccountChangeDone sent! (Lv " .. levelNum .. " >= 11500)")
+                break
             else
                 log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
             end
         else
-            log("info", "Level " .. tostring(raw_level or "N/A") .. " — not yet 11500, skipping AccountChangeDone")
+            log("info", "Level " .. tostring(levelNum or "N/A") .. " — not yet 11500")
         end --]]
+
     else
         log("error", "Error fetching data: " .. tostring(err))
     end
