@@ -136,6 +136,14 @@ local function FetchInventory()
     conn:Disconnect()
 end
 
+local function FetchTotalStats()
+    local ok, data = pcall(function()
+        return game:GetService("ReplicatedStorage").Remotes.GetTotalStats:InvokeServer()
+    end)
+    if ok and data then return data end
+    return {}
+end
+
 local function GetSwordList()
     local swords = {}
     for _, item in pairs(inventoryData["Sword"] or {}) do
@@ -174,7 +182,7 @@ local UPDATE_INTERVAL = 30
 
 while true do
     local gems, level, money, race, clan
-    local hakiText, obsHakiText, conqHakiText, luckText, dmgText
+    local hakiText, obsHakiText, conqHakiText
 
     local success, err = pcall(function()
         local player     = Players.LocalPlayer
@@ -215,59 +223,60 @@ while true do
         end
     end)
 
-    if success and (gems or level or money) then
-
-        local function parseNum(str)
-            if not str or str == "" then return nil end
-            local cleaned = str:gsub("[^%d]+", "")
-            if cleaned == "" then return nil end
-            return tonumber(cleaned)
-        end
-
-        local gemsNum  = parseNum(gems)
-        local moneyNum = parseNum(money)
-        local levelNum = parseNum(level)
-
-        local fmt_gems  = gemsNum  and FormatCoins(gemsNum)  or "N/A"
-        local fmt_money = moneyNum and FormatCoins(moneyNum) or "N/A"
-        local fmt_level = levelNum and tostring(levelNum)    or "N/A"
-
-        -- ดึง Inventory ทุก loop
-        FetchInventory()
-        local swordList = GetSwordList()
-
-        local fmt_luck = luckText or "N/A"
-        local fmt_dmg  = dmgText  or "N/A"
-
-        local messages = string.format(
-            "⭐ Lv.%s, 💵 %s, 💠 %s, %s, %s, Haki:%s Obs:%s, 🍀 Luck:%s 💥 Dmg:%s, 🗡️ Swords.[%s]",
-            fmt_level, fmt_money, fmt_gems,
-            RaceLabel(race), ClanLabel(clan),
-            HakiEmoji(hakiText), HakiEmoji(obsHakiText),
-            fmt_luck, fmt_dmg,
-            swordList
-        )
-
-        _G.Horst_SetDescription(messages)
-        log("success", "Description updated: " .. messages)
-
-        -- [DISABLED] AccountChangeDone
-        --[[ AccountChangeDone disabled
-        if levelNum and levelNum >= 11500 then
-            local ok, doneErr = _G.Horst_AccountChangeDone()
-            if ok then
-                log("success", "AccountChangeDone sent! (Lv " .. levelNum .. " >= 11500)")
-                break
-            else
-                log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
-            end
-        else
-            log("info", "Level " .. tostring(levelNum or "N/A") .. " — not yet 11500")
-        end --]]
-
-    else
+    if not success then
         log("error", "Error fetching data: " .. tostring(err))
     end
+
+    -- ยิง SetDescription เสมอ แม้ข้อมูลบางส่วนจะหาไม่เจอ
+    local function parseNum(str)
+        if not str or str == "" then return nil end
+        local cleaned = str:gsub("[^%d]+", "")
+        if cleaned == "" then return nil end
+        return tonumber(cleaned)
+    end
+
+    local gemsNum  = parseNum(gems)
+    local moneyNum = parseNum(money)
+    local levelNum = parseNum(level)
+
+    local fmt_gems  = gemsNum  and FormatCoins(gemsNum)  or "N/A"
+    local fmt_money = moneyNum and FormatCoins(moneyNum) or "N/A"
+    local fmt_level = levelNum and tostring(levelNum)    or "N/A"
+
+    -- ดึง Inventory ทุก loop
+    FetchInventory()
+    local swordList = GetSwordList()
+
+    -- ดึง Luck และ Damage จาก Remote
+    local totalStats = FetchTotalStats()
+    local fmt_luck = totalStats.LuckTotal   and tostring(math.floor(totalStats.LuckTotal))   or "N/A"
+    local fmt_dmg  = totalStats.DamageTotal and tostring(math.floor(totalStats.DamageTotal)) or "N/A"
+
+    local messages = string.format(
+        "⭐ Lv.%s, 💵 %s, 💠 %s, %s, %s, Haki:%s Obs:%s, 🍀 Luck:%s 💥 Dmg:%s, 🗡️ Swords.[%s]",
+        fmt_level, fmt_money, fmt_gems,
+        RaceLabel(race or "None"), ClanLabel(clan or "None"),
+        HakiEmoji(hakiText), HakiEmoji(obsHakiText),
+        fmt_luck, fmt_dmg,
+        swordList
+    )
+
+    _G.Horst_SetDescription(messages)
+    log("success", "Description updated: " .. messages)
+
+    -- [DISABLED] AccountChangeDone
+    --[[ AccountChangeDone disabled
+    if levelNum and levelNum >= 11500 then
+        local ok, doneErr = _G.Horst_AccountChangeDone()
+        if ok then
+            log("success", "AccountChangeDone sent! (Lv " .. levelNum .. " >= 11500)")
+            break
+        else
+            log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
+        end
+    else
+        log("info", "Level " .. tostring(levelNum or "N/A") .. " — not yet 11500")
+    end --]]
 
     log("info", "Next update in " .. UPDATE_INTERVAL .. " seconds...")
     task.wait(UPDATE_INTERVAL)
