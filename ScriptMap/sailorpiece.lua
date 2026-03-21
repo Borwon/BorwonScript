@@ -174,7 +174,7 @@ local UPDATE_INTERVAL = 30
 
 while true do
     local gems, level, money, race, clan
-    local hakiText, obsHakiText, conqHakiText
+    local hakiText, obsHakiText, conqHakiText, luckText, dmgText
 
     local success, err = pcall(function()
         local player     = Players.LocalPlayer
@@ -236,11 +236,15 @@ while true do
         FetchInventory()
         local swordList = GetSwordList()
 
+        local fmt_luck = luckText or "N/A"
+        local fmt_dmg  = dmgText  or "N/A"
+
         local messages = string.format(
-            "⭐ Lv.%s, 💵 %s, 💠 %s, %s, %s, Haki:%s Obs:%s Conq:%s, 🗡️ Swords.[%s]",
+            "⭐ Lv.%s, 💵 %s, 💠 %s, %s, %s, Haki:%s Obs:%s, 🍀 Luck:%s 💥 Dmg:%s, 🗡️ Swords.[%s]",
             fmt_level, fmt_money, fmt_gems,
             RaceLabel(race), ClanLabel(clan),
-            HakiEmoji(hakiText), HakiEmoji(obsHakiText), HakiEmoji(conqHakiText),
+            HakiEmoji(hakiText), HakiEmoji(obsHakiText),
+            fmt_luck, fmt_dmg,
             swordList
         )
 
