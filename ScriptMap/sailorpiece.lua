@@ -156,23 +156,27 @@ local function GetSwordList()
     return #swords > 0 and table.concat(swords, ", ") or "None"
 end
 
---[[ Keys — DISABLED (เปิดใช้งานครั้งหน้า)
-local WANTED_KEYS = {"Boss Key", "Rush Key", "Dungeon Key", "Boss Ticket", "Slime Key", "Limitless Key", "Malevolent Key"}
+-- Item ที่อยากแสดง + label ย่อ
+local WANTED_ITEMS = {
+    ["Clan Reroll"]   = "Clan",
+    ["Race Reroll"]   = "Race",
+    ["Trait Reroll"]  = "Trait",
+    ["Aura Crate"]    = "Aura",
+    ["Mythical Chest"]= "Mythical",
+}
 
-local function GetKeyList()
+local function GetItemList()
     local parts = {}
     for _, item in pairs(inventoryData["Items"] or {}) do
-        if type(item) == "table" then
-            for _, wanted in ipairs(WANTED_KEYS) do
-                if item.name == wanted then
-                    table.insert(parts, item.name .. " x" .. tostring(item.quantity))
-                end
+        if type(item) == "table" and item.name then
+            local label = WANTED_ITEMS[item.name]
+            if label then
+                table.insert(parts, label .. ":" .. tostring(item.quantity))
             end
         end
     end
-    return #parts > 0 and table.concat(parts, ", ") or "None"
+    return #parts > 0 and table.concat(parts, ", ") or "N/A"
 end
---]]
 
 -- ════════════════════════════════════════
 --  MAIN LOOP
@@ -246,6 +250,7 @@ while true do
     -- ดึง Inventory ทุก loop
     FetchInventory()
     local swordList = GetSwordList()
+    local itemList  = GetItemList()
 
     -- ดึง Luck และ Damage จาก Remote
     local totalStats = FetchTotalStats()
@@ -253,12 +258,12 @@ while true do
     local fmt_dmg  = totalStats.DamageTotal and tostring(math.floor(totalStats.DamageTotal)) or "N/A"
 
     local messages = string.format(
-        "⭐ Lv.%s, 💵 %s, 💠 %s, %s, %s, Haki:%s Obs:%s, 🍀 Luck:%s 💥 Dmg:%s, 🗡️ Swords.[%s]",
+        "⭐ %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ %s",
         fmt_level, fmt_money, fmt_gems,
         RaceLabel(race or "None"), ClanLabel(clan or "None"),
         HakiEmoji(hakiText), HakiEmoji(obsHakiText),
         fmt_luck, fmt_dmg,
-        swordList
+        swordList, itemList
     )
 
     _G.Horst_SetDescription(messages)
