@@ -10,7 +10,7 @@
 -- ════════════════════════════════════════
 
 -- Sword ที่ไม่ต้องแสดง
-local HIDDEN_SWORDS = { ["Katana"] = true, ["Dark Blade"] = true }
+local HIDDEN_SWORDS = { ["Katana"] = true, ["Dark Blade"] = true, ["Combat"] = true }
 
 -- Race → Emoji
 local RACE_EMOJI = {
@@ -136,12 +136,33 @@ local function FetchInventory()
     conn:Disconnect()
 end
 
+local cachedStats = {}
+
 local function FetchTotalStats()
-    local ok, data = pcall(function()
-        return game:GetService("ReplicatedStorage").Remotes.GetTotalStats:InvokeServer()
-    end)
-    if ok and data then return data end
-    return {}
+    for i = 1, 3 do
+        local ok, data = pcall(function()
+            return game:GetService("ReplicatedStorage").Remotes.GetTotalStats:InvokeServer()
+        end)
+        if ok and data and data.LuckTotal and data.DamageTotal then
+            cachedStats = data
+            return cachedStats
+        end
+        task.wait(1)
+    end
+    -- ถ้า retry ครบแล้วยังไม่ได้ ใช้ค่า cache ล่าสุด
+    return cachedStats
+end
+
+local function GetMeleeList()
+    local melees = {}
+    for _, item in pairs(inventoryData["Melee"] or {}) do
+        if type(item) == "table" and item.name then
+            if not HIDDEN_SWORDS[item.name] then
+                table.insert(melees, item.name)
+            end
+        end
+    end
+    return #melees > 0 and table.concat(melees, ", ") or "None"
 end
 
 local function GetSwordList()
@@ -250,6 +271,7 @@ while true do
     -- ดึง Inventory ทุก loop
     FetchInventory()
     local swordList = GetSwordList()
+    local meleeList = GetMeleeList()
     local itemList  = GetItemList()
 
     -- ดึง Luck และ Damage จาก Remote
@@ -258,12 +280,12 @@ while true do
     local fmt_dmg  = totalStats.DamageTotal and tostring(math.floor(totalStats.DamageTotal)) or "N/A"
 
     local messages = string.format(
-        "⭐ %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ %s",
+        "⭐ %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ 👊 %s ┃ %s",
         fmt_level, fmt_money, fmt_gems,
         RaceLabel(race or "None"), ClanLabel(clan or "None"),
         HakiEmoji(hakiText), HakiEmoji(obsHakiText),
         fmt_luck, fmt_dmg,
-        swordList, itemList
+        swordList, meleeList, itemList
     )
 
     _G.Horst_SetDescription(messages)
