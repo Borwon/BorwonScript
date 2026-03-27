@@ -10,7 +10,7 @@
 -- ════════════════════════════════════════
 
 -- Sword ที่ไม่ต้องแสดง
-local HIDDEN_SWORDS = { ["Katana"] = true, ["Dark Blade"] = true, ["Combat"] = true }
+local HIDDEN_SWORDS = { ["Katana"] = true, ["Dark Blade"] = true, ["Combat"] = true, ["Gryphon"] = true, ["Saber"] = true }
 
 -- Race → Emoji
 local RACE_EMOJI = {
@@ -29,6 +29,24 @@ local RACE_EMOJI = {
     Leviathan  = "🌊",
     Slime      = "🟢",
     Servant    = "🔱",
+}
+
+-- ชื่อย่อสำหรับแสดงใน Description (ไม่กระทบ AccountChangeDone)
+local DISPLAY_NAME = {
+    ["Strongest In History"] = "Sukuna V.2",
+    ["Blessed Maiden"]       = "Maiden",
+    ["Abyssal Empress"]      = "Abyssal",
+    ["Strongest Shinobi"]    = "Madara",
+    ["Saber Alter"]          = "Saber Alter",
+}
+
+-- อาวุธที่ต้องครบทุกอันถึงจะ AccountChangeDone
+local REQUIRED_WEAPONS = {
+    ["Abyssal Empress"]      = false,
+    ["Blessed Maiden"]       = false,
+    ["Strongest In History"] = false,
+    ["Saber Alter"]          = false,
+    ["Strongest Shinobi"]    = false,
 }
 
 -- Clan → Emoji
@@ -158,7 +176,8 @@ local function GetMeleeList()
     for _, item in pairs(inventoryData["Melee"] or {}) do
         if type(item) == "table" and item.name then
             if not HIDDEN_SWORDS[item.name] then
-                table.insert(melees, item.name)
+                local displayName = DISPLAY_NAME[item.name] or item.name
+                table.insert(melees, displayName)
             end
         end
     end
@@ -170,11 +189,31 @@ local function GetSwordList()
     for _, item in pairs(inventoryData["Sword"] or {}) do
         if type(item) == "table" and item.name then
             if not HIDDEN_SWORDS[item.name] then
-                table.insert(swords, item.name)
+                local displayName = DISPLAY_NAME[item.name] or item.name
+                table.insert(swords, displayName)
             end
         end
     end
     return #swords > 0 and table.concat(swords, ", ") or "None"
+end
+
+-- เช็คว่ามีอาวุธครบตามเงื่อนไขมั้ย (ใช้ชื่อจริง ไม่ใช่ชื่อย่อ)
+local function CheckRequiredWeapons()
+    local found = {}
+    for k, _ in pairs(REQUIRED_WEAPONS) do
+        found[k] = false
+    end
+    for _, category in ipairs({"Sword", "Melee"}) do
+        for _, item in pairs(inventoryData[category] or {}) do
+            if type(item) == "table" and item.name and found[item.name] ~= nil then
+                found[item.name] = true
+            end
+        end
+    end
+    for _, v in pairs(found) do
+        if not v then return false end
+    end
+    return true
 end
 
 -- Item ที่อยากแสดง + label ย่อ
@@ -291,19 +330,22 @@ while true do
     _G.Horst_SetDescription(messages)
     log("success", "Description updated: " .. messages)
 
-    -- [DISABLED] AccountChangeDone
-    --[[ AccountChangeDone disabled
-    if levelNum and levelNum >= 11500 then
-        local ok, doneErr = _G.Horst_AccountChangeDone()
-        if ok then
-            log("success", "AccountChangeDone sent! (Lv " .. levelNum .. " >= 11500)")
-            break
+    -- AccountChangeDone — Level >= 13000 และมีอาวุธครบ
+    if levelNum and levelNum >= 13000 then
+        if CheckRequiredWeapons() then
+            local ok, doneErr = _G.Horst_AccountChangeDone()
+            if ok then
+                log("success", "AccountChangeDone sent! (Lv " .. levelNum .. " + weapons complete)")
+                break
+            else
+                log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
+            end
         else
-            log("error", "Failed to send AccountChangeDone: " .. tostring(doneErr))
+            log("info", "Lv " .. levelNum .. " >= 13000 but weapons incomplete — skipping")
         end
     else
-        log("info", "Level " .. tostring(levelNum or "N/A") .. " — not yet 11500")
-    end --]]
+        log("info", "Level " .. tostring(levelNum or "N/A") .. " — not yet 13000")
+    end
 
     log("info", "Next update in " .. UPDATE_INTERVAL .. " seconds...")
     task.wait(UPDATE_INTERVAL)
