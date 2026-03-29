@@ -49,6 +49,42 @@ local REQUIRED_WEAPONS = {
     ["Strongest Shinobi"]    = false,
 }
 
+-- Set Definitions — ของที่ต้องใช้แต่ละเซ็ท
+local SET_DEFINITIONS = {
+    { short = "SKN", name = "Strongest In History", items = {
+        ["Cursed Flesh"]         = 1,
+        ["Malevolent Soul"]      = 3,
+        ["Vessel Ring"]          = 7,
+        ["Awakened Cursed Finger"] = 20,
+    }},
+    { short = "SBA", name = "Saber Alter", items = {
+        ["Corrupt Crown"]    = 1,
+        ["Corruption Core"]  = 3,
+        ["Alter Essence"]    = 8,
+        ["Morgan Remnant"]   = 15,
+        ["Dark Grail"]       = 25,
+    }},
+    { short = "BD", name = "Blessed Maiden", items = {
+        ["Celestial Mark"]  = 1,
+        ["Aero Core"]       = 3,
+        ["Gale Essence"]    = 8,
+        ["Tide Remnant"]    = 14,
+        ["Tempest Relic"]   = 25,
+    }},
+    { short = "MDR", name = "Strongest Shinobi", items = {
+        ["Path Fragment"]   = 1,
+        ["Eternal Core"]    = 3,
+        ["Battle Sigil"]    = 8,
+        ["Power Remnant"]   = 15,
+    }},
+    { short = "Rmr", name = "Rimuru", items = {
+        ["Sage Pulse"]      = 9,
+        ["Tempest Seal"]    = 6,
+        ["Slime Remnant"]   = 3,
+        ["Slime Core"]      = 1,
+    }},
+}
+
 -- Clan → Emoji
 local CLAN_EMOJI = {
     None = "🚫",
@@ -238,6 +274,54 @@ local function GetItemList()
     return #parts > 0 and table.concat(parts, ", ") or "N/A"
 end
 
+-- เช็คว่าแต่ละ set ทำเสร็จหรือพร้อมทำ
+local function CheckSets()
+    -- รวม item inventory ไว้ใน map name→quantity
+    local itemMap = {}
+    for _, item in pairs(inventoryData["Items"] or {}) do
+        if type(item) == "table" and item.name then
+            itemMap[item.name] = item.quantity or 0
+        end
+    end
+
+    -- เช็คว่า weapon ที่ set ต้องการมีใน Sword/Melee มั้ย
+    local weaponOwned = {}
+    for _, category in ipairs({"Sword", "Melee"}) do
+        for _, item in pairs(inventoryData[category] or {}) do
+            if type(item) == "table" and item.name then
+                weaponOwned[item.name] = true
+            end
+        end
+    end
+
+    local parts = {}
+    for _, set in ipairs(SET_DEFINITIONS) do
+        -- เช็คว่า weapon ทำเสร็จแล้วมั้ย (มีอาวุธชื่อ set.name ใน sword/melee)
+        local done = weaponOwned[set.name] == true
+
+        if done then
+            table.insert(parts, set.short .. ":✅")
+        else
+            -- เช็คของครบมั้ย
+            local ready = true
+            for itemName, required in pairs(set.items) do
+                local owned = itemMap[itemName] or 0
+                if owned < required then
+                    ready = false
+                    break
+                end
+            end
+            if ready then
+                table.insert(parts, set.short .. ":🆗")
+            else
+                table.insert(parts, set.short .. ":❌")
+            end
+        end
+    end
+
+    return table.concat(parts, " ")
+end
+
 -- ════════════════════════════════════════
 --  MAIN LOOP
 -- ════════════════════════════════════════
@@ -312,6 +396,7 @@ while true do
     local swordList = GetSwordList()
     local meleeList = GetMeleeList()
     local itemList  = GetItemList()
+    local setStatus = CheckSets()
 
     -- ดึง Luck และ Damage จาก Remote
     local totalStats = FetchTotalStats()
@@ -319,12 +404,12 @@ while true do
     local fmt_dmg  = totalStats.DamageTotal and tostring(math.floor(totalStats.DamageTotal)) or "N/A"
 
     local messages = string.format(
-        "⭐ %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ 👊 %s ┃ %s",
+        "⭐ %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ 👊 %s ┃ %s ┃ %s",
         fmt_level, fmt_money, fmt_gems,
         RaceLabel(race or "None"), ClanLabel(clan or "None"),
         HakiEmoji(hakiText), HakiEmoji(obsHakiText),
         fmt_luck, fmt_dmg,
-        swordList, meleeList, itemList
+        swordList, meleeList, itemList, setStatus
     )
 
     _G.Horst_SetDescription(messages)
