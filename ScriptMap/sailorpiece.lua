@@ -209,12 +209,11 @@ end
 
 local function GetMeleeList()
     local melees = {}
-    for _, item in pairs(inventoryData["Melee"] or {}) do
-        if type(item) == "table" and item.name then
-            if not HIDDEN_SWORDS[item.name] then
-                local displayName = DISPLAY_NAME[item.name] or item.name
-                table.insert(melees, displayName)
-            end
+    for key, item in pairs(inventoryData["Melee"] or {}) do
+        local name = type(item) == "table" and item.name or (type(key) == "string" and key or nil)
+        if name and not HIDDEN_SWORDS[name] then
+            local displayName = DISPLAY_NAME[name] or name
+            table.insert(melees, displayName)
         end
     end
     return #melees > 0 and table.concat(melees, ", ") or "None"
@@ -222,12 +221,11 @@ end
 
 local function GetSwordList()
     local swords = {}
-    for _, item in pairs(inventoryData["Sword"] or {}) do
-        if type(item) == "table" and item.name then
-            if not HIDDEN_SWORDS[item.name] then
-                local displayName = DISPLAY_NAME[item.name] or item.name
-                table.insert(swords, displayName)
-            end
+    for key, item in pairs(inventoryData["Sword"] or {}) do
+        local name = type(item) == "table" and item.name or (type(key) == "string" and key or nil)
+        if name and not HIDDEN_SWORDS[name] then
+            local displayName = DISPLAY_NAME[name] or name
+            table.insert(swords, displayName)
         end
     end
     return #swords > 0 and table.concat(swords, ", ") or "None"
@@ -263,11 +261,17 @@ local WANTED_ITEMS = {
 
 local function GetItemList()
     local parts = {}
-    for _, item in pairs(inventoryData["Items"] or {}) do
+    for key, item in pairs(inventoryData["Items"] or {}) do
         if type(item) == "table" and item.name then
             local label = WANTED_ITEMS[item.name]
             if label then
-                table.insert(parts, label .. ":" .. tostring(item.quantity))
+                table.insert(parts, label .. ":" .. tostring(item.quantity or 0))
+            end
+        elseif type(item) == "number" then
+            -- บางครั้ง inventory ส่งมาเป็น {["ชื่อ"] = จำนวน}
+            local label = WANTED_ITEMS[key]
+            if label then
+                table.insert(parts, label .. ":" .. tostring(item))
             end
         end
     end
