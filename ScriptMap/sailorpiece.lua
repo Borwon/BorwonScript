@@ -209,11 +209,12 @@ end
 
 local function GetMeleeList()
     local melees = {}
-    for key, item in pairs(inventoryData["Melee"] or {}) do
-        local name = type(item) == "table" and item.name or (type(key) == "string" and key or nil)
-        if name and not HIDDEN_SWORDS[name] then
-            local displayName = DISPLAY_NAME[name] or name
-            table.insert(melees, displayName)
+    for _, item in pairs(inventoryData["Melee"] or {}) do
+        if type(item) == "table" and item.name then
+            if not HIDDEN_SWORDS[item.name] then
+                local displayName = DISPLAY_NAME[item.name] or item.name
+                table.insert(melees, displayName)
+            end
         end
     end
     return #melees > 0 and table.concat(melees, ", ") or "None"
@@ -221,11 +222,12 @@ end
 
 local function GetSwordList()
     local swords = {}
-    for key, item in pairs(inventoryData["Sword"] or {}) do
-        local name = type(item) == "table" and item.name or (type(key) == "string" and key or nil)
-        if name and not HIDDEN_SWORDS[name] then
-            local displayName = DISPLAY_NAME[name] or name
-            table.insert(swords, displayName)
+    for _, item in pairs(inventoryData["Sword"] or {}) do
+        if type(item) == "table" and item.name then
+            if not HIDDEN_SWORDS[item.name] then
+                local displayName = DISPLAY_NAME[item.name] or item.name
+                table.insert(swords, displayName)
+            end
         end
     end
     return #swords > 0 and table.concat(swords, ", ") or "None"
@@ -261,17 +263,11 @@ local WANTED_ITEMS = {
 
 local function GetItemList()
     local parts = {}
-    for key, item in pairs(inventoryData["Items"] or {}) do
+    for _, item in pairs(inventoryData["Items"] or {}) do
         if type(item) == "table" and item.name then
             local label = WANTED_ITEMS[item.name]
             if label then
-                table.insert(parts, label .. ":" .. tostring(item.quantity or 0))
-            end
-        elseif type(item) == "number" then
-            -- บางครั้ง inventory ส่งมาเป็น {["ชื่อ"] = จำนวน}
-            local label = WANTED_ITEMS[key]
-            if label then
-                table.insert(parts, label .. ":" .. tostring(item))
+                table.insert(parts, label .. ":" .. tostring(item.quantity))
             end
         end
     end
@@ -334,7 +330,7 @@ local UPDATE_INTERVAL = 30
 
 while true do
     local gems, level, money, race, clan
-    local hakiText, obsHakiText, conqHakiText
+    local hakiText, obsHakiText, conqHakiText, rankText
 
     local success, err = pcall(function()
         local player     = Players.LocalPlayer
@@ -351,6 +347,20 @@ while true do
 
         race = player:GetAttribute("CurrentRace") or "None"
         clan = player:GetAttribute("CurrentClan") or "None"
+
+        -- ดึง Rank จาก AscendUI
+        local ascendUI = gui and gui:FindFirstChild("AscendUI")
+        local rankObj  = ascendUI
+            and ascendUI:FindFirstChild("MainFrame")
+            and ascendUI.MainFrame:FindFirstChild("Frame")
+            and ascendUI.MainFrame.Frame:FindFirstChild("Content")
+            and ascendUI.MainFrame.Frame.Content:FindFirstChild("Holder")
+            and ascendUI.MainFrame.Frame.Content.Holder:FindFirstChild("RankInfoReqFrame")
+            and ascendUI.MainFrame.Frame.Content.Holder.RankInfoReqFrame:FindFirstChild("RankInfoFrame")
+            and ascendUI.MainFrame.Frame.Content.Holder.RankInfoReqFrame.RankInfoFrame:FindFirstChild("RankInfo")
+            and ascendUI.MainFrame.Frame.Content.Holder.RankInfoReqFrame.RankInfoFrame.RankInfo:FindFirstChild("AutoSizeHolder")
+            and ascendUI.MainFrame.Frame.Content.Holder.RankInfoReqFrame.RankInfoFrame.RankInfo.AutoSizeHolder:FindFirstChild("CurrentRankYouHave")
+        rankText = rankObj and rankObj.Text or nil
 
         -- Haki จาก GUI
         local gui    = player:FindFirstChild("PlayerGui")
@@ -407,9 +417,11 @@ while true do
     local fmt_luck = totalStats.LuckTotal   and tostring(math.floor(totalStats.LuckTotal))   or "N/A"
     local fmt_dmg  = totalStats.DamageTotal and tostring(math.floor(totalStats.DamageTotal)) or "N/A"
 
+    local fmt_rank = rankText or "N/A"
+
     local messages = string.format(
-        "⭐ %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ 👊 %s ┃ %s ┃ %s",
-        fmt_level, fmt_money, fmt_gems,
+        "⭐ %s ┃ 🏆 %s ┃ 💵 %s ┃ 💠 %s ┃ %s ┃ %s ┃ Haki:%s Obs:%s ┃ 🍀 %s%% ┃ 💥 %s%% ┃ 🗡️ %s ┃ 👊 %s ┃ %s ┃ %s",
+        fmt_level, fmt_rank, fmt_money, fmt_gems,
         RaceLabel(race or "None"), ClanLabel(clan or "None"),
         HakiEmoji(hakiText), HakiEmoji(obsHakiText),
         fmt_luck, fmt_dmg,
