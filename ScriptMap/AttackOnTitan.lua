@@ -13,6 +13,8 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 
 local UPDATE_INTERVAL = 10
+local AFK_IDLE_SECONDS = 10 * 60
+local placeStartedAt = os.clock()
 
 local function log(logType, message)
     local timeStr = os.date("%H:%M:%S")
@@ -129,6 +131,14 @@ local function getPrestigeText(objects)
     return getText(objects.Prestige)
 end
 
+local function getAfkText()
+    if os.clock() - placeStartedAt >= AFK_IDLE_SECONDS then
+        return "✅"
+    end
+
+    return "❌"
+end
+
 local function setDescription(message)
     local ok, err = pcall(function()
         _G.Horst_SetDescription(message)
@@ -144,7 +154,7 @@ log("info", "Script started")
 local objects, loadErr = loadObjects()
 if not objects then
     log("error", loadErr or "Failed to load UI objects")
-    setDescription("Level: N/A - Gold: N/A - Gems: N/A - Prestige: N/A")
+    setDescription("Level: N/A - Gold: N/A - Gems: N/A - Prestige: N/A - AFK:" .. getAfkText())
     return
 end
 
@@ -162,13 +172,15 @@ while true do
         local goldText = getText(objects.Gold)
         local gemsText = getText(objects.Gems)
         local prestigeText = getPrestigeText(objects)
+        local afkText = getAfkText()
 
         local message = string.format(
-            "Level: %s - Gold: %s - Gems: %s - Prestige: %s",
+            "Level: %s - Gold: %s - Gems: %s - Prestige: %s - AFK:%s",
             levelText,
             goldText,
             gemsText,
-            prestigeText
+            prestigeText,
+            afkText
         )
 
         setDescription(message)
