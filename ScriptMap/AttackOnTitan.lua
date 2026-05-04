@@ -4,6 +4,7 @@
 -- Gold:     PlayerGui.Interface.Topbar.Main.Currencies.Gold.Amount.Text
 -- Gems:     PlayerGui.Interface.Topbar.Main.Currencies.Gems.Amount.Text
 -- Prestige: Player:GetAttribute("Prestige")
+-- Items:    PlayerGui.Interface.Inventory.Main.Holder.Items
 
 repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game:GetService("Players").LocalPlayer
@@ -15,6 +16,12 @@ local LocalPlayer = Players.LocalPlayer
 local UPDATE_INTERVAL = 10
 local AFK_IDLE_SECONDS = 10 * 60
 local placeStartedAt = os.clock()
+
+getgenv().AOTItemFilters = getgenv().AOTItemFilters or {
+    "Serum",
+    "Prestige Scroll",
+    "Emperor's key",
+}
 
 local function log(logType, message)
     local timeStr = os.date("%H:%M:%S")
@@ -66,6 +73,45 @@ local function isReadyText(value)
         and value ~= "-"
         and normalized ~= "loading"
         and normalized ~= "loading..."
+end
+
+local function normalizeText(value)
+    return tostring(value or "")
+        :lower()
+        :gsub("[^%w]+", " ")
+        :gsub("%s+", " ")
+        :match("^%s*(.-)%s*$")
+end
+
+local function splitWords(value)
+    local words = {}
+
+    for word in normalizeText(value):gmatch("%S+") do
+        table.insert(words, word)
+    end
+
+    return words
+end
+
+local function textMatchesFilter(text, filter)
+    local normalizedText = normalizeText(text)
+    local normalizedFilter = normalizeText(filter)
+
+    if normalizedText == "" or normalizedFilter == "" then
+        return false
+    end
+
+    if normalizedText:find(normalizedFilter, 1, true) then
+        return true
+    end
+
+    for _, word in ipairs(splitWords(filter)) do
+        if not normalizedText:find(word, 1, true) then
+            return false
+        end
+    end
+
+    return true
 end
 
 local function loadObjects()
@@ -120,6 +166,70 @@ local function getPrestigeText()
     return "N/A"
 end
 
+local function getInventoryItemsRoot()
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local interface = playerGui and playerGui:FindFirstChild("Interface")
+    local inventory = interface and interface:FindFirstChild("Inventory")
+    local main = inventory and inventory:FindFirstChild("Main")
+    local holder = main and main:FindFirstChild("Holder")
+
+    return holder and holder:FindFirstChild("Items")
+end
+
+local function collectItemText(itemObject)
+    local parts = { itemObject.Name }
+
+    for _, descendant in ipairs(itemObject:GetDescendants()) do
+        if descendant:IsA("TextLabel") or descendant:IsA("TextButton") or descendant:IsA("TextBox") then
+            local text = getText(descendant)
+            if text ~= "N/A" then
+                table.insert(parts, text)
+            end
+        end
+    end
+
+    return table.concat(parts, " ")
+end
+
+local function getItemsText()
+    local itemsRoot = getInventoryItemsRoot()
+    if not itemsRoot then
+        return "N/A"
+    end
+
+    local counts = {}
+    local order = {}
+
+    for _, filterName in ipairs(getgenv().AOTItemFilters) do
+        counts[filterName] = 0
+        table.insert(order, filterName)
+    end
+
+    for _, itemObject in ipairs(itemsRoot:GetChildren()) do
+        local itemText = collectItemText(itemObject)
+
+        for _, filterName in ipairs(order) do
+            if textMatchesFilter(itemText, filterName) then
+                counts[filterName] = counts[filterName] + 1
+                break
+            end
+        end
+    end
+
+    local parts = {}
+    for _, filterName in ipairs(order) do
+        if counts[filterName] > 0 then
+            if counts[filterName] == 1 then
+                table.insert(parts, filterName)
+            else
+                table.insert(parts, filterName .. " x" .. tostring(counts[filterName]))
+            end
+        end
+    end
+
+    return #parts > 0 and table.concat(parts, ", ") or "None"
+end
+
 local function getAfkText()
     if os.clock() - placeStartedAt >= AFK_IDLE_SECONDS then
         return "✅"
@@ -143,7 +253,7 @@ log("info", "Script started")
 local objects, loadErr = loadObjects()
 if not objects then
     log("error", loadErr or "Failed to load UI objects")
-    setDescription("Level: N/A - Gold: N/A - Gems: N/A - Prestige: N/A - AFK:" .. getAfkText())
+    setDescription("Level: N/A - Gold: N/A - Gems: N/A - Prestige: N/A - Items: N/A - AFK:" .. getAfkText())
     return
 end
 
@@ -161,14 +271,16 @@ while true do
         local goldText = getText(objects.Gold)
         local gemsText = getText(objects.Gems)
         local prestigeText = getPrestigeText()
+        local itemsText = getItemsText()
         local afkText = getAfkText()
 
         local message = string.format(
-            "Level: %s - Gold: %s - Gems: %s - Prestige: %s - AFK:%s",
+            "Level: %s - Gold: %s - Gems: %s - Prestige: %s - Items: %s - AFK:%s",
             levelText,
             goldText,
             gemsText,
             prestigeText,
+            itemsText,
             afkText
         )
 
