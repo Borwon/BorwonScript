@@ -3,7 +3,7 @@
 -- Level:    PlayerGui.Interface.Gear_Up.HUD.Level.Title.Text
 -- Gold:     PlayerGui.Interface.Topbar.Main.Currencies.Gold.Amount.Text
 -- Gems:     PlayerGui.Interface.Topbar.Main.Currencies.Gems.Amount.Text
--- Prestige: PlayerGui.Interface.Equipment.Prestige.B_Prestige.Visible + Progress.Title.Text fallback
+-- Prestige: Player:GetAttribute("Prestige")
 
 repeat task.wait() until game:IsLoaded()
 repeat task.wait() until game:GetService("Players").LocalPlayer
@@ -78,8 +78,6 @@ local function loadObjects()
         Level = waitForPath(playerGui, { "Interface", "Gear_Up", "HUD", "Level", "Title" }, 30),
         Gold = waitForPath(playerGui, { "Interface", "Topbar", "Main", "Currencies", "Gold", "Amount" }, 30),
         Gems = waitForPath(playerGui, { "Interface", "Topbar", "Main", "Currencies", "Gems", "Amount" }, 30),
-        Prestige = waitForPath(playerGui, { "Interface", "Equipment", "Prestige", "Progress", "Title" }, 30),
-        PrestigeButton = waitForPath(playerGui, { "Interface", "Equipment", "Prestige", "B_Prestige" }, 30),
     }
 
     for name, object in pairs(objects) do
@@ -110,25 +108,16 @@ local function waitForInitialData(objects, timeout)
     return false
 end
 
-local function getPrestigeText(objects)
-    local ok, visible = pcall(function()
-        return objects.PrestigeButton.Visible
+local function getPrestigeText()
+    local ok, value = pcall(function()
+        return LocalPlayer:GetAttribute("Prestige")
     end)
 
-    if ok then
-        if visible == false then
-            return "✅"
-        end
-
-        local progressText = getText(objects.Prestige)
-        if progressText ~= "N/A" then
-            return "❌ " .. progressText
-        end
-
-        return "❌"
+    if ok and value ~= nil then
+        return tostring(value)
     end
 
-    return getText(objects.Prestige)
+    return "N/A"
 end
 
 local function getAfkText()
@@ -171,7 +160,7 @@ while true do
         local levelText = getText(objects.Level)
         local goldText = getText(objects.Gold)
         local gemsText = getText(objects.Gems)
-        local prestigeText = getPrestigeText(objects)
+        local prestigeText = getPrestigeText()
         local afkText = getAfkText()
 
         local message = string.format(
