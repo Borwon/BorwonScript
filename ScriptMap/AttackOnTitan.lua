@@ -19,8 +19,9 @@ local placeStartedAt = os.clock()
 
 getgenv().AOTItemFilters = getgenv().AOTItemFilters or {
     "Serum",
-    "Prestige Scroll",
-    "Emperor's key",
+    "Prestige",
+    "Emperor",
+    "Key",
 }
 
 local function log(logType, message)
@@ -78,6 +79,8 @@ end
 local function normalizeText(value)
     return tostring(value or "")
         :lower()
+        :gsub("'s", " ")
+        :gsub("’s", " ")
         :gsub("[^%w]+", " ")
         :gsub("%s+", " ")
         :match("^%s*(.-)%s*$")
@@ -87,7 +90,9 @@ local function splitWords(value)
     local words = {}
 
     for word in normalizeText(value):gmatch("%S+") do
-        table.insert(words, word)
+        if word ~= "s" then
+            table.insert(words, word)
+        end
     end
 
     return words
@@ -176,19 +181,14 @@ local function getInventoryItemsRoot()
     return holder and holder:FindFirstChild("Items")
 end
 
-local function collectItemText(itemObject)
-    local parts = { itemObject.Name }
+local function cleanItemName(name)
+    local cleaned = tostring(name or "")
 
-    for _, descendant in ipairs(itemObject:GetDescendants()) do
-        if descendant:IsA("TextLabel") or descendant:IsA("TextButton") or descendant:IsA("TextBox") then
-            local text = getText(descendant)
-            if text ~= "N/A" then
-                table.insert(parts, text)
-            end
-        end
-    end
+    -- Item names sometimes start with slot/order numbers. Keep the real name only.
+    cleaned = cleaned:gsub("^%s*%d+[%s%-%_%:%.)%]]*", "")
+    cleaned = cleaned:gsub("^%s+", ""):gsub("%s+$", "")
 
-    return table.concat(parts, " ")
+    return cleaned ~= "" and cleaned or tostring(name or "Unknown")
 end
 
 local function getItemsText()
@@ -199,30 +199,40 @@ local function getItemsText()
 
     local counts = {}
     local order = {}
+    local matchedOrder = {}
 
     for _, filterName in ipairs(getgenv().AOTItemFilters) do
-        counts[filterName] = 0
         table.insert(order, filterName)
     end
 
     for _, itemObject in ipairs(itemsRoot:GetChildren()) do
-        local itemText = collectItemText(itemObject)
+        local rawName = itemObject.Name
+        local itemName = cleanItemName(rawName)
+
+        if getgenv().AOTDebugItems then
+            log("info", "Inventory candidate: raw=" .. tostring(rawName) .. " clean=" .. tostring(itemName))
+        end
 
         for _, filterName in ipairs(order) do
-            if textMatchesFilter(itemText, filterName) then
-                counts[filterName] = counts[filterName] + 1
+            if textMatchesFilter(itemName, filterName) then
+                if counts[itemName] == nil then
+                    counts[itemName] = 0
+                    table.insert(matchedOrder, itemName)
+                end
+
+                counts[itemName] = counts[itemName] + 1
                 break
             end
         end
     end
 
     local parts = {}
-    for _, filterName in ipairs(order) do
-        if counts[filterName] > 0 then
-            if counts[filterName] == 1 then
-                table.insert(parts, filterName)
+    for _, itemName in ipairs(matchedOrder) do
+        if counts[itemName] and counts[itemName] > 0 then
+            if counts[itemName] == 1 then
+                table.insert(parts, itemName)
             else
-                table.insert(parts, filterName .. " x" .. tostring(counts[filterName]))
+                table.insert(parts, itemName .. " x" .. tostring(counts[itemName]))
             end
         end
     end
