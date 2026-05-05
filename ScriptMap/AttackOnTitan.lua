@@ -11,11 +11,15 @@ repeat task.wait() until game:GetService("Players").LocalPlayer
 repeat task.wait() until _G.Horst_SetDescription
 
 local Players = game:GetService("Players")
+local GuiService = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local LocalPlayer = Players.LocalPlayer
 
 local UPDATE_INTERVAL = 10
 local AFK_IDLE_SECONDS = 10 * 60
+local INVENTORY_REFRESH_INTERVAL = 30
 local placeStartedAt = os.clock()
+local lastInventoryRefreshAt = 0
 
 getgenv().AOTItemFilters = getgenv().AOTItemFilters or {
     "Serum",
@@ -23,6 +27,9 @@ getgenv().AOTItemFilters = getgenv().AOTItemFilters or {
     "Emperor",
     "Key",
 }
+if getgenv().AOTRefreshInventory == nil then
+    getgenv().AOTRefreshInventory = true
+end
 
 local function log(logType, message)
     local timeStr = os.date("%H:%M:%S")
@@ -181,6 +188,116 @@ local function getInventoryItemsRoot()
     return holder and holder:FindFirstChild("Items")
 end
 
+local function pressReturn()
+    VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.Return, false, game)
+    task.wait(0.08)
+    VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.Return, false, game)
+    task.wait(0.08)
+end
+
+local function clickGui(button)
+    if not button then
+        return false
+    end
+
+    local ok = pcall(function()
+        button.Selectable = true
+        GuiService.SelectedObject = button
+        pressReturn()
+        GuiService.SelectedObject = nil
+    end)
+
+    GuiService.SelectedObject = nil
+    return ok
+end
+
+local function forceVisible(guiObject)
+    local changed = {}
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local current = guiObject
+
+    while current and current ~= playerGui do
+        if current:IsA("GuiObject") and current.Visible == false then
+            table.insert(changed, { object = current, visible = false })
+            current.Visible = true
+        end
+        current = current.Parent
+    end
+
+    task.wait()
+    return changed
+end
+
+local function restoreVisible(changed)
+    if getgenv().AOTKeepInventoryOpen then
+        return
+    end
+
+    for i = #changed, 1, -1 do
+        local item = changed[i]
+        if item.object and item.object.Parent then
+            item.object.Visible = item.visible
+        end
+    end
+end
+
+local function textObjectText(object)
+    if object:IsA("TextLabel") or object:IsA("TextButton") or object:IsA("TextBox") then
+        return object.Text or ""
+    end
+
+    return ""
+end
+
+local function shouldClickInventoryButton(object)
+    local text = normalizeText(object.Name .. " " .. textObjectText(object))
+
+    return text:find("inventory", 1, true) ~= nil
+        or text:find("bag", 1, true) ~= nil
+        or text:find("backpack", 1, true) ~= nil
+        or text:find("items", 1, true) ~= nil
+end
+
+local function refreshInventory()
+    if not getgenv().AOTRefreshInventory then
+        return
+    end
+
+    if os.clock() - lastInventoryRefreshAt < INVENTORY_REFRESH_INTERVAL then
+        return
+    end
+    lastInventoryRefreshAt = os.clock()
+
+    local playerGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local interface = playerGui and playerGui:FindFirstChild("Interface")
+    local inventory = interface and interface:FindFirstChild("Inventory")
+    if not playerGui or not interface then
+        return
+    end
+
+    local changed = {}
+    if inventory then
+        changed = forceVisible(inventory)
+    end
+
+    local clicked = 0
+    for _, object in ipairs(interface:GetDescendants()) do
+        if (object:IsA("TextButton") or object:IsA("ImageButton")) and shouldClickInventoryButton(object) then
+            if clickGui(object) then
+                clicked = clicked + 1
+                task.wait(0.15)
+            end
+        end
+    end
+
+    task.wait(1)
+    restoreVisible(changed)
+
+    if getgenv().AOTDebugItems then
+        log("info", "Inventory refresh attempted. Clicked buttons: " .. tostring(clicked))
+    end
+end
+
 local function cleanItemName(name)
     local cleaned = tostring(name or "")
 
@@ -192,9 +309,16 @@ local function cleanItemName(name)
 end
 
 local function getItemsText()
+    refreshInventory()
+
     local itemsRoot = getInventoryItemsRoot()
     if not itemsRoot then
         return "N/A"
+    end
+
+    if #itemsRoot:GetChildren() == 0 then
+        lastInventoryRefreshAt = 0
+        refreshInventory()
     end
 
     local counts = {}
