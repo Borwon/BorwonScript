@@ -21,11 +21,21 @@ local INVENTORY_REFRESH_INTERVAL = 30
 local placeStartedAt = os.clock()
 local lastInventoryRefreshAt = 0
 
+local ICON_LEVEL = "\u{2B50}"
+local ICON_PRESTIGE = "\u{1F3C6}"
+local ICON_GOLD = "\u{1FA99}"
+local ICON_GEMS = "\u{1F4A0}"
+local ICON_SERUM = "\u{1F9EA}"
+local ICON_CHECK = "\u{2705}"
+local ICON_CROSS = "\u{274C}"
+local SEP = "\u{2503}"
+
 getgenv().AOTItemFilters = getgenv().AOTItemFilters or {
     "Serum",
     "Prestige",
     "Emperor",
     "Key",
+    "Scroll",
 }
 if getgenv().AOTRefreshInventory == nil then
     getgenv().AOTRefreshInventory = true
@@ -176,6 +186,36 @@ local function getPrestigeText()
     end
 
     return "N/A"
+end
+
+local function parseNumber(value)
+    local text = tostring(value or "")
+    local numberText = text:match("(%d+)")
+
+    return numberText and tonumber(numberText) or nil
+end
+
+local function formatLevelText(levelText, prestigeText)
+    local level = parseNumber(levelText)
+    local prestige = parseNumber(prestigeText)
+
+    local maxLevels = {
+        [1] = 125,
+        [2] = 150,
+        [3] = 175,
+        [4] = 200,
+        [5] = 225,
+    }
+
+    if level and prestige and maxLevels[prestige] and level >= maxLevels[prestige] then
+        return "Lv.Max(" .. tostring(level) .. ")"
+    end
+
+    if level then
+        return "Lv." .. tostring(level)
+    end
+
+    return tostring(levelText or "N/A")
 end
 
 local function getInventoryItemsRoot()
@@ -351,8 +391,13 @@ local function getItemsText()
     end
 
     local parts = {}
+    local hasSerum = false
     for _, itemName in ipairs(matchedOrder) do
         if counts[itemName] and counts[itemName] > 0 then
+            if textMatchesFilter(itemName, "Serum") then
+                hasSerum = true
+            end
+
             if counts[itemName] == 1 then
                 table.insert(parts, itemName)
             else
@@ -361,7 +406,7 @@ local function getItemsText()
         end
     end
 
-    return #parts > 0 and table.concat(parts, ", ") or "None"
+    return #parts > 0 and table.concat(parts, ", ") or "None", hasSerum
 end
 
 local function getAfkText()
@@ -370,6 +415,14 @@ local function getAfkText()
     end
 
     return "❌"
+end
+
+local function getAfkIcon()
+    if os.clock() - placeStartedAt >= AFK_IDLE_SECONDS then
+        return ICON_CHECK
+    end
+
+    return ICON_CROSS
 end
 
 local function setDescription(message)
@@ -387,7 +440,15 @@ log("info", "Script started")
 local objects, loadErr = loadObjects()
 if not objects then
     log("error", loadErr or "Failed to load UI objects")
-    setDescription("Level: N/A - Gold: N/A - Gems: N/A - Prestige: N/A - Items: N/A - AFK:" .. getAfkText())
+    setDescription(table.concat({
+        ICON_LEVEL .. " N/A",
+        ICON_PRESTIGE .. " N/A",
+        ICON_GOLD .. " N/A",
+        ICON_GEMS .. " N/A",
+        ICON_SERUM .. SEP .. ICON_CROSS,
+        "Items: N/A",
+        "AFK:" .. getAfkIcon(),
+    }, " " .. SEP .. " "))
     return
 end
 
@@ -405,18 +466,20 @@ while true do
         local goldText = getText(objects.Gold)
         local gemsText = getText(objects.Gems)
         local prestigeText = getPrestigeText()
-        local itemsText = getItemsText()
-        local afkText = getAfkText()
+        local formattedLevelText = formatLevelText(levelText, prestigeText)
+        local itemsText, hasSerum = getItemsText()
+        local serumText = ICON_SERUM .. ":" .. (hasSerum and ICON_CHECK or ICON_CROSS)
+        local afkText = getAfkIcon()
 
-        local message = string.format(
-            "Level: %s - Gold: %s - Gems: %s - Prestige: %s - Items: %s - AFK:%s",
-            levelText,
-            goldText,
-            gemsText,
-            prestigeText,
-            itemsText,
-            afkText
-        )
+        local message = table.concat({
+            ICON_LEVEL .. " " .. formattedLevelText,
+            ICON_PRESTIGE .. " " .. prestigeText,
+            ICON_GOLD .. " " .. goldText,
+            ICON_GEMS .. " " .. gemsText,
+            serumText,
+            "Items: " .. itemsText,
+            "AFK:" .. afkText,
+        }, " " .. SEP .. " ")
 
         setDescription(message)
         log("success", "Description updated: " .. message)
