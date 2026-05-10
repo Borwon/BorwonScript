@@ -27,7 +27,8 @@ getgenv().Config = {
                     "Shogun's Helm",
                     "Warrior's Armband",
                     "Warrior's Medallion"
-                }
+                },
+			["Family"]=true
         }
     },
     ["Swich_ALT"]={
@@ -38,6 +39,7 @@ getgenv().Config = {
         ["When_ItemsAbove"]=true
     }
 }
+
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -53,6 +55,7 @@ local pressss=0
 local Inv={}
 local serum={}
 local itemList = {}
+local Family="None"
 local function famconf()
     if getgenv().Config["Slot"]=="A" then
         return result.Slots.A
@@ -72,6 +75,7 @@ local function Status_upd ()
     Inv=famconf().Inventory or {}
     leeevel=famconf().Progression.Level or 1
     pressss=famconf().Progression.Prestige or 0
+	Family=famconf().Avatar.Family or "None"
 end
 
 
@@ -150,8 +154,10 @@ task.spawn(function()
 
             local _, cosme = pcall(getitem)
             local cosmics= (getgenv().Config["ShowStatus"]["Serum"] and cosme ) or "N/A"
-            
-            local json_strings = {
+
+            local Race= (getgenv().Config["ShowStatus"]["Serum"] and Family ) or "N/A"
+            local json_strings = {	
+									Racee=Race,
                                     Level=Leveil,
                                     Presitage=Pre,
                                     Money=Thong,
@@ -165,7 +171,7 @@ task.spawn(function()
 
 
             pcall(function() 
-                local description = string.format("📃Level: %s  📜Presitage: %s  🥇Golds: %s  💎Gems: %s  ⚽Spins: %s  💉Serum: %s  🧥Cosmetics: %s", Leveil, Pre, Thong, phetch, Gyro, Sorum,cosmics)
+                local description = string.format("🩸Family: %s  📃Level: %s  📜Presitage: %s  🥇Golds: %s  💎Gems: %s  ⚽Spins: %s  💉Serum: %s  🧥Cosmetics: %s",Race, Leveil, Pre, Thong, phetch, Gyro, Sorum,cosmics)
                 _G.Horst_SetDescription(description,EncodeJson)
             end)
             if getgenv().Config["Swich_ALT"]["IsEnable"] and Pre >= getgenv().Config["Swich_ALT"]["When_Presitage"] and Leveil>= getgenv().Config["Swich_ALT"]["When_Level"] and Thong >= getgenv().Config["Swich_ALT"]["When_Money"] and ( getgenv().Config["Swich_ALT"]["When_ItemsAbove"] and CheckItemMember() )  then
