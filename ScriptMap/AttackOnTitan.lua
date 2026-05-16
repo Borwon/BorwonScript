@@ -43,8 +43,8 @@ getgenv().Config = {
 local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RemoteGet = ReplicatedStorage.Assets.Remotes.GET
-local result = RemoteGet:InvokeServer("Functions", "Settings", "Blur", "Off")
+local RemoteGet = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Remotes"):WaitForChild("GET")
+local result = nil
 local Currency = {}
 local Canes = 0
 local Gems = 0
@@ -56,26 +56,69 @@ local Inv={}
 local serum={}
 local itemList = {}
 local Family="None"
-local function famconf()
-    if getgenv().Config["Slot"]=="A" then
-        return result.Slots.A
-    elseif getgenv().Config["Slot"]=="B" then
-        return result.Slots.B
-    else
-        return result.Slots.C
+
+local function fetchSettingsData()
+    local ok, data = pcall(function()
+        return RemoteGet:InvokeServer("Functions", "Settings", "Blur", "Off")
+    end)
+
+    if ok and type(data) == "table" then
+        return data
     end
+
+    return nil
+end
+
+local function getSlotData(data)
+    if type(data) ~= "table" or type(data.Slots) ~= "table" then
+        return nil
+    end
+
+    local slot = getgenv().Config["Slot"]
+    return data.Slots[slot]
+end
+
+local function waitForMapData()
+    local timeout = 60
+    local started = os.clock()
+
+    repeat
+        result = fetchSettingsData()
+        local slotData = getSlotData(result)
+
+        if type(slotData) == "table"
+            and type(slotData.Currency) == "table"
+            and type(slotData.Inventory) == "table"
+            and type(slotData.Progression) == "table"
+            and type(slotData.Avatar) == "table" then
+            return true
+        end
+
+        task.wait(1)
+    until os.clock() - started >= timeout
+
+    return false
+end
+
+waitForMapData()
+
+local function famconf()
+    return getSlotData(result) or {}
 end
 local function Status_upd ()
-    result = RemoteGet:InvokeServer("Functions", "Settings", "Blur", "Off")
-    Currency = famconf().Currency or {}
+    result = fetchSettingsData() or result
+    local slotData = famconf()
+    Currency = slotData.Currency or {}
     Canes = Currency.Canes or 0
     Gems = Currency.Gems or 0
     Gold = Currency.Gold or 0
-    Spin=famconf().Total_Spins or 0
-    Inv=famconf().Inventory or {}
-    leeevel=famconf().Progression.Level or 1
-    pressss=famconf().Progression.Prestige or 0
-	Family=famconf().Avatar.Family or "None"
+    Spin=slotData.Total_Spins or 0
+    Inv=slotData.Inventory or {}
+    local progression = slotData.Progression or {}
+    local avatar = slotData.Avatar or {}
+    leeevel=progression.Level or 1
+    pressss=progression.Prestige or 0
+	Family=avatar.Family or "None"
 end
 
 
