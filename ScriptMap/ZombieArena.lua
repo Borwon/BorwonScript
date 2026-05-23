@@ -100,7 +100,7 @@ while true do
         local voidShards = getValue(voidShardsValue, 0)
 
         local messages = string.format(
-            "🧟 Zombie Arena | 🌊 TopWave: %s | 💰 Credits: %s | 💎 VoidShards: %s",
+            "🧟 Zombie Arena  🌊 TopWave: %s  💰 Credits: %s  💎 VoidShards: %s",
             tostring(topWave),
             formatShortNumber(credits),
             formatShortNumber(voidShards)
