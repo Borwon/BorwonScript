@@ -24,6 +24,7 @@ local placeScripts = {
      [79546208627805] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/99night.lua",
      [74747090658891] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/BizarreLineage.lua",
      [14916516914] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/AttackOnTitan.lua",
+     [114204398207377] = "https://raw.githubusercontent.com/Borwon/BorwonScript/refs/heads/Update/ScriptMap/ZombieArena.lua",
 }
 -- =============================================================
 
