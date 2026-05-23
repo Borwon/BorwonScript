@@ -160,7 +160,7 @@ end
 
 log("success", "Data ready. Starting monitoring loop.")
 
-local UPDATE_INTERVAL = 10
+local UPDATE_INTERVAL = 2
 
 while true do
     local success, err = pcall(function()
