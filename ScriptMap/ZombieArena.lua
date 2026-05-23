@@ -69,6 +69,7 @@ local WEAPON_NAMES = {
     "Quasar",
     "Pulsar",
     "VoidScythe",
+    "Interstellar",
 }
 
 local function safeFindChild(parent, childName)
